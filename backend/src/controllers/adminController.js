@@ -113,22 +113,22 @@ const matchDepartment = (student, targetCode, departments = []) => {
 
 // Seed/demo fallback dataset covering all departments
 const FALLBACK_STUDENTS = [
-  { id: 101, name: "Rahul Sharma", usn: "01CS123", department: "Computer Science & Engineering", departmentCode: "CSE", semester: 5, section: "A", academicYear: "2026-27", email: "rahul.sharma@klsvdit.edu.in", deviceBound: true, boundDeviceName: "Pixel 8" },
-  { id: 102, name: "Ananya Singh", usn: "01CS124", department: "Computer Science & Engineering", departmentCode: "CSE", semester: 5, section: "A", academicYear: "2026-27", email: "ananya.singh@klsvdit.edu.in", deviceBound: true, boundDeviceName: "iPhone 15" },
-  { id: 103, name: "Vikram Patel", usn: "01CS125", department: "Computer Science & Engineering", departmentCode: "CSE", semester: 5, section: "B", academicYear: "2026-27", email: "vikram.patel@klsvdit.edu.in", deviceBound: true, boundDeviceName: "Galaxy S23" },
-  { id: 104, name: "Arjun Kumar", usn: "01CS127", department: "Computer Science & Engineering", departmentCode: "CSE", semester: 5, section: "A", academicYear: "2026-27", email: "arjun.kumar@klsvdit.edu.in", deviceBound: true, boundDeviceName: "OnePlus 11" },
-  { id: 201, name: "Priya Sharma", usn: "01AI001", department: "Artificial Intelligence & Machine Learning", departmentCode: "AIML", semester: 3, section: "A", academicYear: "2026-27", email: "priya.sharma@klsvdit.edu.in", deviceBound: true, boundDeviceName: "iPhone 14" },
-  { id: 202, name: "Rohit Gupta", usn: "01AI002", department: "Artificial Intelligence & Machine Learning", departmentCode: "AIML", semester: 3, section: "A", academicYear: "2026-27", email: "rohit.gupta@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
-  { id: 301, name: "Ishita Rao", usn: "01EC203", department: "Electronics & Communication", departmentCode: "ECE", semester: 3, section: "A", academicYear: "2026-27", email: "ishita.rao@klsvdit.edu.in", deviceBound: true, boundDeviceName: "iPhone 14" },
-  { id: 302, name: "Manoj Kumar", usn: "01EC204", department: "Electronics & Communication", departmentCode: "ECE", semester: 3, section: "B", academicYear: "2026-27", email: "manoj.kumar@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
-  { id: 401, name: "Suresh Patil", usn: "01EE101", department: "Electrical & Electronics Engineering", departmentCode: "EEE", semester: 5, section: "A", academicYear: "2026-27", email: "suresh.patil@klsvdit.edu.in", deviceBound: true, boundDeviceName: "Galaxy A54" },
-  { id: 402, name: "Divya K", usn: "01EE102", department: "Electrical & Electronics Engineering", departmentCode: "EEE", semester: 5, section: "A", academicYear: "2026-27", email: "divya.k@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
-  { id: 501, name: "Adarsh Joshi", usn: "01ME051", department: "Mechanical Engineering", departmentCode: "MECH", semester: 7, section: "A", academicYear: "2026-27", email: "adarsh.joshi@klsvdit.edu.in", deviceBound: true, boundDeviceName: "Vivo X90" },
-  { id: 502, name: "Ramesh Patil", usn: "01ME052", department: "Mechanical Engineering", departmentCode: "MECH", semester: 7, section: "B", academicYear: "2026-27", email: "ramesh.patil@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
-  { id: 601, name: "Sneha Kulkarni", usn: "01CV011", department: "Civil Engineering", departmentCode: "CIVIL", semester: 5, section: "A", academicYear: "2026-27", email: "sneha.kulkarni@klsvdit.edu.in", deviceBound: true, boundDeviceName: "Pixel 7a" },
-  { id: 602, name: "Vijay Kumar", usn: "01CV012", department: "Civil Engineering", departmentCode: "CIVIL", semester: 5, section: "A", academicYear: "2026-27", email: "vijay.kumar@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
-  { id: 701, name: "Pooja Nair", usn: "01DS001", department: "Computer Science (Data Science)", departmentCode: "CSE-DS", semester: 3, section: "A", academicYear: "2026-27", email: "pooja.nair@klsvdit.edu.in", deviceBound: true, boundDeviceName: "iPhone 13" },
-  { id: 702, name: "Karthik Hegde", usn: "01DS002", department: "Computer Science (Data Science)", departmentCode: "CSE-DS", semester: 3, section: "A", academicYear: "2026-27", email: "karthik.hegde@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
+  { id: 101, name: "Rahul Sharma", usn: "01CS123", department: "Computer Science & Engineering", departmentCode: "CSE", semester: 5, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "rahul.sharma@klsvdit.edu.in", deviceBound: true, boundDeviceName: "Pixel 8" },
+  { id: 102, name: "Ananya Singh", usn: "01CS124", department: "Computer Science & Engineering", departmentCode: "CSE", semester: 5, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "ananya.singh@klsvdit.edu.in", deviceBound: true, boundDeviceName: "iPhone 15" },
+  { id: 103, name: "Vikram Patel", usn: "01CS125", department: "Computer Science & Engineering", departmentCode: "CSE", semester: 5, section: "B", Lab: "B1", lab: "B1", academicYear: "2026-27", email: "vikram.patel@klsvdit.edu.in", deviceBound: true, boundDeviceName: "Galaxy S23" },
+  { id: 104, name: "Arjun Kumar", usn: "01CS127", department: "Computer Science & Engineering", departmentCode: "CSE", semester: 5, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "arjun.kumar@klsvdit.edu.in", deviceBound: true, boundDeviceName: "OnePlus 11" },
+  { id: 201, name: "Priya Sharma", usn: "01AI001", department: "Artificial Intelligence & Machine Learning", departmentCode: "AIML", semester: 3, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "priya.sharma@klsvdit.edu.in", deviceBound: true, boundDeviceName: "iPhone 14" },
+  { id: 202, name: "Rohit Gupta", usn: "01AI002", department: "Artificial Intelligence & Machine Learning", departmentCode: "AIML", semester: 3, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "rohit.gupta@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
+  { id: 301, name: "Ishita Rao", usn: "01EC203", department: "Electronics & Communication", departmentCode: "ECE", semester: 3, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "ishita.rao@klsvdit.edu.in", deviceBound: true, boundDeviceName: "iPhone 14" },
+  { id: 302, name: "Manoj Kumar", usn: "01EC204", department: "Electronics & Communication", departmentCode: "ECE", semester: 3, section: "B", Lab: "B1", lab: "B1", academicYear: "2026-27", email: "manoj.kumar@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
+  { id: 401, name: "Suresh Patil", usn: "01EE101", department: "Electrical & Electronics Engineering", departmentCode: "EEE", semester: 5, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "suresh.patil@klsvdit.edu.in", deviceBound: true, boundDeviceName: "Galaxy A54" },
+  { id: 402, name: "Divya K", usn: "01EE102", department: "Electrical & Electronics Engineering", departmentCode: "EEE", semester: 5, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "divya.k@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
+  { id: 501, name: "Adarsh Joshi", usn: "01ME051", department: "Mechanical Engineering", departmentCode: "MECH", semester: 7, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "adarsh.joshi@klsvdit.edu.in", deviceBound: true, boundDeviceName: "Vivo X90" },
+  { id: 502, name: "Ramesh Patil", usn: "01ME052", department: "Mechanical Engineering", departmentCode: "MECH", semester: 7, section: "B", Lab: "B1", lab: "B1", academicYear: "2026-27", email: "ramesh.patil@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
+  { id: 601, name: "Sneha Kulkarni", usn: "01CV011", department: "Civil Engineering", departmentCode: "CIVIL", semester: 5, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "sneha.kulkarni@klsvdit.edu.in", deviceBound: true, boundDeviceName: "Pixel 7a" },
+  { id: 602, name: "Vijay Kumar", usn: "01CV012", department: "Civil Engineering", departmentCode: "CIVIL", semester: 5, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "vijay.kumar@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
+  { id: 701, name: "Pooja Nair", usn: "01DS001", department: "Computer Science (Data Science)", departmentCode: "CSE-DS", semester: 3, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "pooja.nair@klsvdit.edu.in", deviceBound: true, boundDeviceName: "iPhone 13" },
+  { id: 702, name: "Karthik Hegde", usn: "01DS002", department: "Computer Science (Data Science)", departmentCode: "CSE-DS", semester: 3, section: "A", Lab: "A1", lab: "A1", academicYear: "2026-27", email: "karthik.hegde@klsvdit.edu.in", deviceBound: false, boundDeviceName: null },
 ];
 
 // Helper for validating USN range specification
@@ -223,6 +223,30 @@ export function checkUsnRange(usn, from, to) {
   return sUsn >= rangeSpec.sFrom && sUsn <= rangeSpec.sTo;
 }
 
+// Helper for numeric-aware USN sorting (LOW -> HIGH)
+export function compareUsn(a, b) {
+  const sA = String(a || "").trim().toUpperCase();
+  const sB = String(b || "").trim().toUpperCase();
+  if (!sA && !sB) return 0;
+  if (!sA) return 1;
+  if (!sB) return -1;
+
+  const matchA = sA.match(/^(.*?)(\d+)$/);
+  const matchB = sB.match(/^(.*?)(\d+)$/);
+
+  if (matchA && matchB) {
+    const prefixA = matchA[1];
+    const prefixB = matchB[1];
+    if (prefixA === prefixB) {
+      const numA = parseInt(matchA[2], 10);
+      const numB = parseInt(matchB[2], 10);
+      if (numA !== numB) return numA - numB;
+    }
+  }
+
+  return sA.localeCompare(sB, undefined, { numeric: true, sensitivity: "base" });
+}
+
 export const getAdminStudents = async (req, res) => {
   try {
     const callerEmail = req.user?.email;
@@ -268,6 +292,8 @@ export const getAdminStudents = async (req, res) => {
             departmentId: student.departmentId,
             semester: student.semester,
             section: student.section,
+            Lab: student.Lab || `${student.section || "A"}1`,
+            lab: student.Lab || `${student.section || "A"}1`,
             academicYear: student.academicYear,
             email: user?.email ?? null,
             deviceBound,
@@ -317,6 +343,9 @@ export const getAdminStudents = async (req, res) => {
         String(student.section || "").toUpperCase() === division
       );
     }
+
+    // Sort students by USN LOW -> HIGH using numeric-aware comparator
+    result.sort((a, b) => compareUsn(a.usn, b.usn));
 
     return res.status(200).json({
       success: true,
@@ -445,18 +474,22 @@ export const createAdminStudent = async (req, res) => {
       isActive: true,
     });
 
+    const cleanSection = section
+      ? String(section)
+          .replace(/section/i, "")
+          .trim()
+          .toUpperCase()
+      : "A";
+    const cleanLab = `${cleanSection}1`;
+
     // Create Student
     const student = await db.orm.public.Student.create({
       userId: user.id,
       registerNumber: normalizedRegisterNumber,
       departmentId: selectedDepartment.id,
       semester: semesterNumber,
-      section: section
-        ? String(section)
-            .replace(/section/i, "")
-            .trim()
-            .toUpperCase()
-        : "A",
+      section: cleanSection,
+      Lab: cleanLab,
       academicYear: academicYear || "2026-27",
     });
 
@@ -708,6 +741,7 @@ export const importAdminStudents = async (req, res) => {
         departmentId: targetDept.id,
         semester,
         section: "A",
+        Lab: "A1",
         academicYear: "2026-27",
       });
 
@@ -845,15 +879,23 @@ export const assignAdminStudentDivision = async (req, res) => {
       });
     }
 
+    // Sort matched students by USN LOW -> HIGH
+    matchedStudents.sort((a, b) =>
+      compareUsn(a.registerNumber || a.usn, b.registerNumber || b.usn)
+    );
+
     // Map matched student details
     const studentSummaries = matchedStudents.map((s) => {
       const u = allUsers.find((user) => user.id === s.userId);
+      const willRealignLab = !String(s.Lab || "").startsWith(division);
       return {
         id: s.id,
         usn: s.registerNumber || s.usn,
         name: u?.name || s.name || "Student",
         currentDivision: s.section || "A",
         newDivision: division,
+        currentLab: s.Lab || `${s.section || "A"}1`,
+        newLab: willRealignLab ? `${division}1` : (s.Lab || `${division}1`),
         semester: s.semester,
       };
     });
@@ -877,12 +919,22 @@ export const assignAdminStudentDivision = async (req, res) => {
     for (const student of matchedStudents) {
       if (student.id) {
         try {
-          await db.orm.public.Student.where({ id: student.id }).update({
-            section: division,
-          });
+          const updateFields = { section: division };
+          // If existing Lab does not match the new division, re-align to default batch (e.g. B1)
+          // Preserves the non-null constraint while keeping division and lab strictly consistent
+          if (!String(student.Lab || "").startsWith(division)) {
+            const defaultLab = `${division}1`;
+            updateFields.Lab = defaultLab;
+            student.Lab = defaultLab;
+          }
+          await db.orm.public.Student.where({ id: student.id }).update(updateFields);
+          student.section = division;
         } catch (dbUpdateErr) {
           // Fallback update in memory if DB is offline
           student.section = division;
+          if (!String(student.Lab || "").startsWith(division)) {
+            student.Lab = `${division}1`;
+          }
         }
       }
     }
@@ -903,6 +955,248 @@ export const assignAdminStudentDivision = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to assign division to students",
+    });
+  }
+};
+
+/**
+ * Assign lab batch (A1-A4, B1-B4, C1-C4, D1-D4) to students within a USN range.
+ * Updates PostgreSQL Student.Lab directly (SINGLE SOURCE OF TRUTH).
+ * Strictly enforces HOD department isolation and division-matching constraints.
+ */
+export const assignAdminStudentLabBatch = async (req, res) => {
+  try {
+    const callerEmail = req.user?.email;
+    const hodDepartment = getHodDepartment(callerEmail);
+
+    const startUsn = String(req.body.startUsn ?? req.body.fromUsn ?? "").trim().toUpperCase();
+    const endUsn = String(req.body.endUsn ?? req.body.toUsn ?? "").trim().toUpperCase();
+    const labBatch = String(req.body.labBatch ?? req.body.lab ?? "").trim().toUpperCase();
+    const isPreview = String(req.query.preview ?? req.body.preview ?? "").toLowerCase() === "true";
+
+    // 1. Validation: Missing fields
+    if (!startUsn) {
+      return res.status(400).json({
+        success: false,
+        message: "Beginning USN is required",
+      });
+    }
+
+    if (!endUsn) {
+      return res.status(400).json({
+        success: false,
+        message: "Ending USN is required",
+      });
+    }
+
+    if (!labBatch) {
+      return res.status(400).json({
+        success: false,
+        message: "Lab Batch is required (must be A1-A4, B1-B4, C1-C4, or D1-D4)",
+      });
+    }
+
+    // 2. Validation: Batch format and max 4 batches per division
+    const VALID_LAB_BATCHES = [
+      "A1", "A2", "A3", "A4",
+      "B1", "B2", "B3", "B4",
+      "C1", "C2", "C3", "C4",
+      "D1", "D2", "D3", "D4",
+    ];
+
+    if (!VALID_LAB_BATCHES.includes(labBatch)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid lab batch "${labBatch}". Maximum 4 batches per division allowed: A1-A4, B1-B4, C1-C4, D1-D4.`,
+      });
+    }
+
+    const targetDivision = labBatch[0]; // e.g. "A" for "A1"
+
+    // 3. Validation: USN Range ordering and prefix compatibility
+    const rangeSpec = parseAndValidateUsnRange(startUsn, endUsn);
+    if (!rangeSpec.valid) {
+      return res.status(400).json({
+        success: false,
+        message: rangeSpec.error || "Invalid USN range specification",
+      });
+    }
+
+    // 4. Resolve target department strictly from authenticated HOD
+    const departments = await db.orm.public.Department.all();
+    let targetDept = null;
+    if (hodDepartment) {
+      targetDept = departments.find(
+        (d) => d.code?.toUpperCase() === hodDepartment.toUpperCase()
+      );
+    }
+
+    // 5. Query students from database
+    const allStudents = await db.orm.public.Student.all();
+    const allUsers = await db.orm.public.User.all();
+
+    let targetStudents = allStudents;
+    if (targetDept) {
+      targetStudents = targetStudents.filter(
+        (s) => s.departmentId === targetDept.id
+      );
+    }
+
+    // Filter students strictly within the validated USN range
+    let matchedStudents = targetStudents.filter((s) =>
+      checkUsnRange(s.registerNumber, startUsn, endUsn)
+    );
+
+    // Fallback in local dev if DB is empty
+    if (matchedStudents.length === 0 && (!allStudents || allStudents.length === 0)) {
+      let fallbackTarget = [...FALLBACK_STUDENTS];
+      if (hodDepartment) {
+        fallbackTarget = fallbackTarget.filter((s) =>
+          matchDepartment(s, hodDepartment, departments)
+        );
+      }
+      matchedStudents = fallbackTarget.filter((s) =>
+        checkUsnRange(s.usn, startUsn, endUsn)
+      );
+    }
+
+    if (matchedStudents.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No students found in USN range ${startUsn} to ${endUsn}${targetDept ? ` for department ${targetDept.code}` : ""}.`,
+      });
+    }
+
+    // Sort matched students by USN LOW -> HIGH
+    matchedStudents.sort((a, b) =>
+      compareUsn(a.registerNumber || a.usn, b.registerNumber || b.usn)
+    );
+
+    // 6. CRITICAL DIVISION CONSISTENCY CHECK
+    // Every student in the selected range must have section matching the lab batch prefix
+    const mismatchedStudents = [];
+    const validDivisionStudents = [];
+
+    for (const s of matchedStudents) {
+      const studentSec = String(s.section || "").trim().toUpperCase();
+      const u = allUsers.find((user) => user.id === s.userId);
+      const studentInfo = {
+        id: s.id,
+        usn: s.registerNumber || s.usn,
+        name: u?.name || s.name || "Student",
+        section: studentSec,
+        currentLab: s.Lab || `${studentSec}1`,
+        semester: s.semester,
+      };
+
+      if (studentSec !== targetDivision) {
+        mismatchedStudents.push(studentInfo);
+      } else {
+        validDivisionStudents.push(studentInfo);
+      }
+    }
+
+    const hasMismatch = mismatchedStudents.length > 0;
+
+    // Existing lab assignments breakdown
+    let alreadyAssignedCount = 0;
+    let reassignedCount = 0;
+    const existingBreakdown = {};
+
+    for (const s of matchedStudents) {
+      const currentLab = s.Lab || `${s.section || "A"}1`;
+      existingBreakdown[currentLab] = (existingBreakdown[currentLab] || 0) + 1;
+      if (currentLab === labBatch) {
+        alreadyAssignedCount++;
+      } else {
+        reassignedCount++;
+      }
+    }
+
+    const studentSummaries = matchedStudents.map((s) => {
+      const u = allUsers.find((user) => user.id === s.userId);
+      const studentSec = String(s.section || "").trim().toUpperCase();
+      return {
+        id: s.id,
+        usn: s.registerNumber || s.usn,
+        name: u?.name || s.name || "Student",
+        division: studentSec || "A",
+        currentLab: s.Lab || `${studentSec || "A"}1`,
+        newLab: labBatch,
+        isMismatched: studentSec !== targetDivision,
+        semester: s.semester,
+      };
+    });
+
+    // 7. Preview Mode
+    if (isPreview) {
+      return res.status(200).json({
+        success: true,
+        preview: true,
+        canApply: !hasMismatch,
+        startUsn,
+        endUsn,
+        labBatch,
+        division: targetDivision,
+        department: targetDept?.code || hodDepartment || "ALL",
+        departmentName: targetDept?.name || hodDepartment || "All Departments",
+        affectedCount: matchedStudents.length,
+        alreadyAssignedCount,
+        reassignedCount,
+        existingBreakdown,
+        hasMismatch,
+        mismatchedCount: mismatchedStudents.length,
+        mismatchedStudents,
+        mismatchMessage: hasMismatch
+          ? `Range contains ${mismatchedStudents.length} student${mismatchedStudents.length === 1 ? "" : "s"} belonging to a division other than "${targetDivision}". Selected lab batch ${labBatch} can only be assigned to Division ${targetDivision} students.`
+          : null,
+        students: studentSummaries,
+      });
+    }
+
+    // 8. Commit Mode (Apply)
+    // REJECT if any student in range does not match division
+    if (hasMismatch) {
+      const firstMismatch = mismatchedStudents[0];
+      return res.status(400).json({
+        success: false,
+        message: `Cannot assign lab batch ${labBatch}: Range contains student ${firstMismatch.usn} (${firstMismatch.name}) belonging to Division "${firstMismatch.section}". All students in the range must belong to Division "${targetDivision}".`,
+        mismatchedCount: mismatchedStudents.length,
+        mismatchedStudents,
+      });
+    }
+
+    // Directly update PostgreSQL Student.Lab
+    for (const student of matchedStudents) {
+      if (student.id) {
+        try {
+          await db.orm.public.Student.where({ id: student.id }).update({
+            Lab: labBatch,
+          });
+          student.Lab = labBatch;
+        } catch (dbUpdateErr) {
+          student.Lab = labBatch;
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      preview: false,
+      message: `Lab batch ${labBatch} successfully assigned to ${matchedStudents.length} student${matchedStudents.length === 1 ? "" : "s"} in Division ${targetDivision}.`,
+      updatedCount: matchedStudents.length,
+      labBatch,
+      division: targetDivision,
+      startUsn,
+      endUsn,
+      department: targetDept?.code || hodDepartment || "ALL",
+      students: studentSummaries,
+    });
+  } catch (error) {
+    console.error("Assign student lab batch error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to assign lab batch to students",
     });
   }
 };

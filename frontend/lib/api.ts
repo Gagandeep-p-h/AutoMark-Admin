@@ -25,6 +25,8 @@ export interface StudentRecord {
   department: string;
   semester: number;
   section: string;
+  Lab?: string;
+  lab?: string;
   academicYear: string;
   email?: string;
   deviceBound: boolean;
@@ -140,6 +142,8 @@ export async function getStudents(
             department: s.department,
             semester: s.semester,
             section: s.section,
+            Lab: s.Lab || s.lab || `${s.section || 'A'}1`,
+            lab: s.Lab || s.lab || `${s.section || 'A'}1`,
             academicYear: s.academicYear,
             email: s.email,
             deviceBound: s.deviceBound,
@@ -453,20 +457,113 @@ export async function commitAssignDivision(payload: AssignDivisionPayload): Prom
   return data;
 }
 
-/**
- * Assign division (A, B, C, D) to students within a USN range (legacy alias)
- */
-export async function assignStudentDivision(payload: {
-  fromUsn: string;
-  toUsn: string;
-  division: string;
-}): Promise<{ success: boolean; message: string; count?: number }> {
-  return commitAssignDivision({
-    startUsn: payload.fromUsn,
-    endUsn: payload.toUsn,
-    division: payload.division,
-  }).then(r => ({ success: r.success, message: r.message, count: r.updatedCount }));
+export interface AssignLabBatchPayload {
+  startUsn: string;
+  endUsn: string;
+  labBatch: string;
 }
+
+export interface AssignLabBatchPreviewResult {
+  success: boolean;
+  preview: boolean;
+  canApply: boolean;
+  startUsn: string;
+  endUsn: string;
+  labBatch: string;
+  division: string;
+  department: string;
+  departmentName?: string;
+  affectedCount: number;
+  alreadyAssignedCount: number;
+  reassignedCount: number;
+  existingBreakdown: Record<string, number>;
+  hasMismatch: boolean;
+  mismatchedCount: number;
+  mismatchedStudents: Array<{
+    id: number | string;
+    usn: string;
+    name: string;
+    section: string;
+    currentLab: string;
+    semester?: number;
+  }>;
+  mismatchMessage?: string | null;
+  students: Array<{
+    id: number | string;
+    usn: string;
+    name: string;
+    division: string;
+    currentLab: string;
+    newLab: string;
+    isMismatched: boolean;
+    semester?: number;
+  }>;
+}
+
+export interface AssignLabBatchCommitResult {
+  success: boolean;
+  preview: boolean;
+  message: string;
+  updatedCount: number;
+  labBatch: string;
+  division: string;
+  startUsn: string;
+  endUsn: string;
+  department: string;
+  students?: Array<{
+    id: number | string;
+    usn: string;
+    name: string;
+    division: string;
+    currentLab: string;
+    newLab: string;
+    isMismatched: boolean;
+    semester?: number;
+  }>;
+}
+
+/**
+ * Preview students affected by USN range lab batch assignment
+ */
+export async function previewAssignLabBatch(payload: AssignLabBatchPayload): Promise<AssignLabBatchPreviewResult> {
+  const res = await fetch('/api/admin/students/lab-batch?preview=true', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to calculate lab batch preview');
+  }
+
+  return data;
+}
+
+/**
+ * Commit lab batch assignment to database for USN range
+ */
+export async function commitAssignLabBatch(payload: AssignLabBatchPayload): Promise<AssignLabBatchCommitResult> {
+  const res = await fetch('/api/admin/students/lab-batch', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to assign lab batch to students');
+  }
+
+  return data;
+}
+
 
 /**
  * Update student editable fields (name, deviceStatus)

@@ -7,6 +7,7 @@ import {
   createAdminStudent,
   importAdminStudents,
   assignAdminStudentDivision,
+  assignAdminStudentLabBatch,
   updateAdminStudent,
   deleteAdminStudent,
   getAdminStudentDevice,
@@ -56,6 +57,27 @@ router.post(
   authenticate,
   authorize("ADMIN", "FACULTY", "HOD"),
   assignAdminStudentDivision
+);
+
+router.patch(
+  "/students/lab-batch",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  assignAdminStudentLabBatch
+);
+
+router.post(
+  "/students/lab-batch",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  assignAdminStudentLabBatch
+);
+
+router.post(
+  "/students/assign-lab-batch",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  assignAdminStudentLabBatch
 );
 
 router.get(

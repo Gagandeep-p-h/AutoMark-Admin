@@ -1102,6 +1102,13 @@
           },
           "Student": {
             "fields": {
+              "Lab": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "academicYear": {
                 "nullable": false,
                 "type": {
@@ -1245,6 +1252,9 @@
             },
             "storage": {
               "fields": {
+                "Lab": {
+                  "column": "Lab"
+                },
                 "academicYear": {
                   "column": "academicYear"
                 },
@@ -2538,6 +2548,11 @@
             },
             "student": {
               "columns": {
+                "Lab": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
                 "academicYear": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
@@ -3027,7 +3042,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "5354a51ca6802dcef022b269fe5e114eaeb3794507e39206153e7fe35fd06aa4"
+    "storageHash": "7d31e0046d7a4e98ab67b8949a046d5fbec34744d8e6fe7da6728c5c925c6c9a"
   },
   "execution": {
     "executionHash": "b016bb1982981c5e0232d7ebb78cd7ccd2f0855e0b56c9c9b8ea1dd124a0ecc2",

@@ -42,6 +42,9 @@ import {
   previewAssignDivision,
   commitAssignDivision,
   AssignDivisionPreviewResult,
+  previewAssignLabBatch,
+  commitAssignLabBatch,
+  AssignLabBatchPreviewResult,
   StudentRecord,
   FacultyRecord,
   ImportPreviewResult,
@@ -116,6 +119,30 @@ function matchesDivision(studentSection: string | undefined, selectedDiv: string
   const sSec = String(studentSection || '').trim().toUpperCase()
   const sel = selectedDiv.trim().toUpperCase()
   return sSec === sel || sSec === `SEC ${sel}` || sSec === `DIVISION ${sel}` || sSec === `DIV ${sel}`
+}
+
+// Helper for numeric-aware USN comparison (sorts LOW -> HIGH)
+export function compareUsn(a: string | undefined, b: string | undefined): number {
+  const sA = String(a || '').trim().toUpperCase()
+  const sB = String(b || '').trim().toUpperCase()
+  if (!sA && !sB) return 0
+  if (!sA) return 1
+  if (!sB) return -1
+
+  const matchA = sA.match(/^(.*?)(\d+)$/)
+  const matchB = sB.match(/^(.*?)(\d+)$/)
+
+  if (matchA && matchB) {
+    const prefixA = matchA[1]
+    const prefixB = matchB[1]
+    if (prefixA === prefixB) {
+      const numA = parseInt(matchA[2], 10)
+      const numB = parseInt(matchB[2], 10)
+      if (numA !== numB) return numA - numB
+    }
+  }
+
+  return sA.localeCompare(sB, undefined, { numeric: true, sensitivity: 'base' })
 }
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
@@ -221,6 +248,17 @@ export function StudentsPage() {
   const [assigningDivision, setAssigningDivision] = useState(false)
   const [divisionActionMessage, setDivisionActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  // USN Range & Lab Batch allotment state
+  const [labStartUsn, setLabStartUsn] = useState('')
+  const [labEndUsn, setLabEndUsn] = useState('')
+  const [selectedLabBatch, setSelectedLabBatch] = useState('')
+  const [labRangeError, setLabRangeError] = useState('')
+  const [checkingLabRange, setCheckingLabRange] = useState(false)
+  const [showLabConfirmModal, setShowLabConfirmModal] = useState(false)
+  const [labPreviewData, setLabPreviewData] = useState<AssignLabBatchPreviewResult | null>(null)
+  const [assigningLabBatch, setAssigningLabBatch] = useState(false)
+  const [labActionMessage, setLabActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
   // Actions menu state
   const [openActionMenuId, setOpenActionMenuId] = useState<number | string | null>(null)
 
@@ -262,7 +300,7 @@ export function StudentsPage() {
     let active = true
     getStudents().then(res => {
       if (active) {
-        setStudents(res.students)
+        setStudents([...res.students].sort((a, b) => compareUsn(a.usn, b.usn)))
         setIsLive(res.isLive)
         setIsHod(Boolean(res.isHod))
         setHodDepartment(res.department || null)
@@ -396,7 +434,7 @@ export function StudentsPage() {
 
 
   const filtered = useMemo(() => {
-    return students.filter(s => {
+    const matched = students.filter(s => {
       const q = query.trim().toLowerCase()
       const matchesQuery = !q ||
         s.name.toLowerCase().includes(q) ||
@@ -407,6 +445,8 @@ export function StudentsPage() {
       if (!matchesQuery) return false
       return true
     })
+
+    return matched.sort((a, b) => compareUsn(a.usn, b.usn))
   }, [students, query])
 
   const handleApplyDivision = async () => {
@@ -524,9 +564,100 @@ export function StudentsPage() {
     }
   }
 
+  const handleApplyLabBatch = async () => {
+    setLabRangeError('')
+    const cleanStart = labStartUsn.trim().toUpperCase()
+    const cleanEnd = labEndUsn.trim().toUpperCase()
+
+    if (!cleanStart) {
+      setLabRangeError('Please enter Beginning USN')
+      return
+    }
+    if (!cleanEnd) {
+      setLabRangeError('Please enter Ending USN')
+      return
+    }
+    if (!selectedLabBatch) {
+      setLabRangeError('Please select a Lab Batch (A1-A4, B1-B4, C1-C4, D1-D4)')
+      return
+    }
+
+    setCheckingLabRange(true)
+    try {
+      const data = await previewAssignLabBatch({
+        startUsn: cleanStart,
+        endUsn: cleanEnd,
+        labBatch: selectedLabBatch,
+      })
+
+      if (!data.affectedCount || data.affectedCount === 0) {
+        setLabRangeError(`No students found in USN range ${cleanStart} to ${cleanEnd} for ${data.departmentName || 'your department'}.`)
+        return
+      }
+
+      setLabPreviewData(data)
+      setShowLabConfirmModal(true)
+    } catch (err: any) {
+      setLabRangeError(err.message || 'Failed to calculate lab batch preview')
+    } finally {
+      setCheckingLabRange(false)
+    }
+  }
+
+  const handleConfirmAssignLabBatch = async () => {
+    if (!labPreviewData) return
+    setAssigningLabBatch(true)
+
+    try {
+      const result = await commitAssignLabBatch({
+        startUsn: labPreviewData.startUsn,
+        endUsn: labPreviewData.endUsn,
+        labBatch: labPreviewData.labBatch,
+      })
+
+      setShowLabConfirmModal(false)
+      setLabActionMessage({
+        type: 'success',
+        text: result.message || `Lab batch ${labPreviewData.labBatch} assigned to ${labPreviewData.affectedCount} students.`,
+      })
+
+      // Update student lab in local state
+      setStudents(prev =>
+        prev.map(s => {
+          if (isUsnInRange(s.usn, labPreviewData.startUsn, labPreviewData.endUsn)) {
+            return { ...s, Lab: labPreviewData.labBatch, lab: labPreviewData.labBatch }
+          }
+          return s
+        })
+      )
+
+      // Refresh from backend PostgreSQL single source of truth
+      getStudents().then(refreshed => {
+        if (refreshed?.students) {
+          setStudents(refreshed.students)
+        }
+      })
+
+      // Clear input fields
+      setLabStartUsn('')
+      setLabEndUsn('')
+      setSelectedLabBatch('')
+      setLabPreviewData(null)
+    } catch (err: any) {
+      setLabActionMessage({
+        type: 'error',
+        text: err.message || 'Failed to assign lab batch',
+      })
+      setShowLabConfirmModal(false)
+    } finally {
+      setAssigningLabBatch(false)
+      setTimeout(() => setLabActionMessage(null), 6000)
+    }
+  }
+
   const handleExportStudents = () => {
     if (students.length === 0) return
-    const headers = ['USN', 'Name', 'Department', 'Semester', 'Section', 'Academic Year', 'Email', 'Device Status']
+    const headers = ['USN', 'Name', 'Department', 'Semester', 'Section', 'Lab Batch', 'Academic Year', 'Email', 'Device Status']
     const csvRows = [
       headers.join(','),
       ...filtered.map(s => [
@@ -535,6 +666,7 @@ export function StudentsPage() {
         `"${s.department || ''}"`,
         s.semester || '',
         `"${s.section || ''}"`,
+        `"${s.Lab || s.lab || 'A1'}"`,
         `"${s.academicYear || ''}"`,
         `"${s.email || ''}"`,
         s.deviceBound ? 'Linked' : 'Not Linked'
@@ -656,7 +788,7 @@ export function StudentsPage() {
         boundDeviceName: null,
         account: 'Active'
       }
-      setStudents(prev => [newStudent, ...prev])
+      setStudents(prev => [...prev, newStudent].sort((a, b) => compareUsn(a.usn, b.usn)))
       setSuccessMessage('Student registered (Demo Mode)')
       setTimeout(() => {
         setShowAddModal(false)
@@ -818,11 +950,143 @@ export function StudentsPage() {
                 )}
               </div>
 
+              {/* Compact Section: USN Range -> Lab Batch Allotment */}
+              <div className="flex flex-wrap items-center gap-2.5 p-2 bg-muted/40 rounded-xl border border-border">
+                <span className="text-xs font-semibold text-foreground whitespace-nowrap px-1">Lab Batch:</span>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Beginning USN</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. 2VD23CS001"
+                    value={labStartUsn}
+                    onChange={e => {
+                      setLabStartUsn(e.target.value)
+                      setLabRangeError('')
+                    }}
+                    className="h-8 w-28 sm:w-32 rounded-md border border-input bg-background px-2.5 text-xs font-mono uppercase outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Ending USN</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. 2VD23CS010"
+                    value={labEndUsn}
+                    onChange={e => {
+                      setLabEndUsn(e.target.value)
+                      setLabRangeError('')
+                    }}
+                    className="h-8 w-28 sm:w-32 rounded-md border border-input bg-background px-2.5 text-xs font-mono uppercase outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Batch</span>
+                  <select
+                    value={selectedLabBatch}
+                    onChange={e => {
+                      setSelectedLabBatch(e.target.value)
+                      setLabRangeError('')
+                    }}
+                    className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                  >
+                    <option value="">Select</option>
+                    <optgroup label="Division A">
+                      <option value="A1">A1</option>
+                      <option value="A2">A2</option>
+                      <option value="A3">A3</option>
+                      <option value="A4">A4</option>
+                    </optgroup>
+                    <optgroup label="Division B">
+                      <option value="B1">B1</option>
+                      <option value="B2">B2</option>
+                      <option value="B3">B3</option>
+                      <option value="B4">B4</option>
+                    </optgroup>
+                    <optgroup label="Division C">
+                      <option value="C1">C1</option>
+                      <option value="C2">C2</option>
+                      <option value="C3">C3</option>
+                      <option value="C4">C4</option>
+                    </optgroup>
+                    <optgroup label="Division D">
+                      <option value="D1">D1</option>
+                      <option value="D2">D2</option>
+                      <option value="D3">D3</option>
+                      <option value="D4">D4</option>
+                    </optgroup>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleApplyLabBatch}
+                  disabled={!labStartUsn || !labEndUsn || !selectedLabBatch || checkingLabRange}
+                  className="inline-flex items-center justify-center h-8 px-3.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {checkingLabRange ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                  Apply
+                </button>
+
+                {(labStartUsn || labEndUsn || selectedLabBatch) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLabStartUsn('')
+                      setLabEndUsn('')
+                      setSelectedLabBatch('')
+                      setLabRangeError('')
+                    }}
+                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors flex items-center gap-1"
+                    title="Clear lab range"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline text-[11px]">Clear</span>
+                  </button>
+                )}
+              </div>
+
               {/* Student count */}
               <div className="text-xs text-muted-foreground shrink-0 self-end xl:self-auto">
                 {filtered.length} student{filtered.length === 1 ? '' : 's'} found
               </div>
             </div>
+
+            {/* Lab Range Error Banner */}
+            {labRangeError && (
+              <div className="p-3 px-4 text-xs bg-rose-50 text-rose-800 border-b border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  <span>{labRangeError}</span>
+                </div>
+                <button type="button" onClick={() => setLabRangeError('')} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Lab Range Action Message Banner */}
+            {labActionMessage && (
+              <div className={`p-3 px-4 text-xs border-b flex items-center justify-between ${
+                labActionMessage.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800'
+                  : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {labActionMessage.type === 'success' ? (
+                    <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  )}
+                  <span>{labActionMessage.text}</span>
+                </div>
+                <button type="button" onClick={() => setLabActionMessage(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
 
             {/* Error or Success feedback banner */}
             {rangeError && (
@@ -901,9 +1165,16 @@ export function StudentsPage() {
                         <span className="text-xs text-muted-foreground">Semester {s.semester}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground">
-                          Sec {s.section}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground">
+                            Sec {s.section}
+                          </span>
+                          {(s.Lab || s.lab) && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                              Lab {s.Lab || s.lab}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={s.deviceBound ? 'Registered' : 'Not Registered'} />
@@ -1424,6 +1695,128 @@ export function StudentsPage() {
                 >
                   {assigningDivision ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
                   Assign Division {divisionPreviewData.division}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Lab Batch Allotment Confirmation / Preview Modal */}
+        {showLabConfirmModal && labPreviewData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <div className="bg-card border border-border w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="p-6 border-b border-border">
+                <h3 className="text-lg font-semibold text-foreground">Confirm Lab Batch Allotment</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Review affected students and division constraints before committing to the database.
+                </p>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="bg-muted/40 rounded-lg p-3.5 border border-border/80 space-y-2 text-xs">
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-muted-foreground font-medium">Beginning USN:</span>
+                    <span className="font-mono font-semibold text-foreground">{labPreviewData.startUsn}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-muted-foreground font-medium">Ending USN:</span>
+                    <span className="font-mono font-semibold text-foreground">{labPreviewData.endUsn}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-muted-foreground font-medium">Target Division:</span>
+                    <span className="font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
+                      Division {labPreviewData.division}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-muted-foreground font-medium">Selected Lab Batch:</span>
+                    <span className="font-bold text-foreground px-2 py-0.5 rounded bg-secondary">
+                      Lab {labPreviewData.labBatch}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-muted-foreground font-medium">Department:</span>
+                    <span className="font-medium text-foreground">{labPreviewData.departmentName || labPreviewData.department}</span>
+                  </div>
+                </div>
+
+                {/* Mismatch Alert if any students belong to other divisions */}
+                {labPreviewData.hasMismatch ? (
+                  <div className="p-3 bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 rounded-lg space-y-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                      <span className="text-xs font-semibold">Division Mismatch Detected</span>
+                    </div>
+                    <p className="text-xs">
+                      {labPreviewData.mismatchMessage || `This range contains students not belonging to Division ${labPreviewData.division}. Lab Batch ${labPreviewData.labBatch} can only be assigned to students in Division ${labPreviewData.division}.`}
+                    </p>
+                    <div className="text-[11px] font-mono bg-rose-100/50 dark:bg-rose-900/30 p-2 rounded">
+                      {labPreviewData.mismatchedStudents.slice(0, 3).map(m => `${m.usn} (${m.name}) is in Division ${m.section}`).join(', ')}
+                      {labPreviewData.mismatchedStudents.length > 3 ? ` +${labPreviewData.mismatchedStudents.length - 3} more` : ''}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800 rounded-lg space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-xs font-semibold">
+                          {labPreviewData.affectedCount} student{labPreviewData.affectedCount === 1 ? '' : 's'} matched in Division {labPreviewData.division}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300">
+                        Valid
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-emerald-900 dark:text-emerald-200 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/60 flex flex-wrap gap-x-3">
+                      <span>{labPreviewData.alreadyAssignedCount} already in {labPreviewData.labBatch}</span>
+                      <span>•</span>
+                      <span>{labPreviewData.reassignedCount} reassigned to {labPreviewData.labBatch}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Scrollable list preview of affected students */}
+                <div className="max-h-44 overflow-y-auto border border-border rounded-lg divide-y divide-border text-xs">
+                  {labPreviewData.students.map((st, i) => (
+                    <div key={st.id || i} className={`p-2.5 flex items-center justify-between ${st.isMismatched ? 'bg-rose-50/50 dark:bg-rose-950/20' : 'hover:bg-muted/30'}`}>
+                      <div>
+                        <span className="font-mono font-medium text-foreground mr-2">{st.usn}</span>
+                        <span className="text-muted-foreground">{st.name}</span>
+                        {st.isMismatched && (
+                          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300">
+                            Div {st.division} (Mismatch)
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px]">
+                        <span className="text-muted-foreground">Lab {st.currentLab}</span>
+                        <span>→</span>
+                        <span className={`font-semibold ${st.isMismatched ? 'text-rose-600' : 'text-primary'}`}>
+                          Lab {st.newLab}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-4 bg-muted/20 border-t border-border flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowLabConfirmModal(false)}
+                  className="px-4 py-2 text-xs font-medium rounded-md border border-input hover:bg-accent transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmAssignLabBatch}
+                  disabled={!labPreviewData.canApply || assigningLabBatch}
+                  className="inline-flex items-center justify-center px-4 py-2 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {assigningLabBatch ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                  Confirm Allotment ({labPreviewData.labBatch})
                 </button>
               </div>
             </div>
