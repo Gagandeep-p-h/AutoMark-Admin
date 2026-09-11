@@ -287,3 +287,285 @@ export async function getFaculty(token?: string): Promise<{ faculty: FacultyReco
     isLive: false,
   };
 }
+
+export interface ImportStudentItem {
+  usn: string;
+  name: string;
+  year: number;
+  department: string;
+  status: 'READY' | 'ALREADY_EXISTS' | 'DUPLICATE_IN_FILE' | 'INVALID';
+  reason?: string | null;
+}
+
+export interface ImportPreviewResult {
+  success: boolean;
+  preview: boolean;
+  department: string;
+  departmentName?: string;
+  year: number;
+  totalFound: number;
+  readyToImport: number;
+  alreadyExists: number;
+  duplicatesInFile: number;
+  invalidRows: number;
+  students: ImportStudentItem[];
+  message?: string;
+}
+
+export interface ImportCommitResult {
+  success: boolean;
+  preview: boolean;
+  message: string;
+  summary: {
+    imported: number;
+    skipped: number;
+    alreadyExists: number;
+    duplicatesInFile: number;
+    invalidRows: number;
+    totalFound: number;
+    department: string;
+    year: number;
+  };
+  data?: any[];
+}
+
+/**
+ * Preview student list from uploaded file without saving to database
+ */
+export async function previewImportStudents(file: File, year: number): Promise<ImportPreviewResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('year', String(year));
+
+  const res = await fetch('/api/admin/students/import?preview=true', {
+    method: 'POST',
+    body: formData,
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to preview student import file');
+  }
+
+  return data;
+}
+
+/**
+ * Commit import of validated students into database
+ */
+export async function commitImportStudents(file: File, year: number): Promise<ImportCommitResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('year', String(year));
+
+  const res = await fetch('/api/admin/students/import?preview=false', {
+    method: 'POST',
+    body: formData,
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to import students');
+  }
+
+  return data;
+}
+
+export interface AssignDivisionPayload {
+  startUsn: string;
+  endUsn: string;
+  division: string;
+}
+
+export interface AssignDivisionPreviewResult {
+  success: boolean;
+  preview: boolean;
+  startUsn: string;
+  endUsn: string;
+  division: string;
+  department: string;
+  departmentName?: string;
+  affectedCount: number;
+  students: Array<{
+    id: number | string;
+    usn: string;
+    name: string;
+    currentDivision: string;
+    newDivision: string;
+    semester?: number;
+  }>;
+}
+
+export interface AssignDivisionCommitResult {
+  success: boolean;
+  preview: boolean;
+  message: string;
+  updatedCount: number;
+  division: string;
+  department: string;
+  students?: Array<{
+    id: number | string;
+    usn: string;
+    name: string;
+    division: string;
+  }>;
+}
+
+/**
+ * Preview students affected by USN range division assignment
+ */
+export async function previewAssignDivision(payload: AssignDivisionPayload): Promise<AssignDivisionPreviewResult> {
+  const res = await fetch('/api/admin/students/division?preview=true', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to calculate affected students');
+  }
+
+  return data;
+}
+
+/**
+ * Commit division assignment to database for USN range
+ */
+export async function commitAssignDivision(payload: AssignDivisionPayload): Promise<AssignDivisionCommitResult> {
+  const res = await fetch('/api/admin/students/division', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to assign division to students');
+  }
+
+  return data;
+}
+
+/**
+ * Assign division (A, B, C, D) to students within a USN range (legacy alias)
+ */
+export async function assignStudentDivision(payload: {
+  fromUsn: string;
+  toUsn: string;
+  division: string;
+}): Promise<{ success: boolean; message: string; count?: number }> {
+  return commitAssignDivision({
+    startUsn: payload.fromUsn,
+    endUsn: payload.toUsn,
+    division: payload.division,
+  }).then(r => ({ success: r.success, message: r.message, count: r.updatedCount }));
+}
+
+/**
+ * Update student editable fields (name, deviceStatus)
+ */
+export async function updateStudentAdmin(
+  id: number | string,
+  payload: { name?: string; deviceStatus?: string }
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const res = await fetch(`/api/admin/students/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to update student');
+  }
+
+  return data;
+}
+
+/**
+ * Delete student (blocked if attendance records exist)
+ */
+export async function deleteStudentAdmin(
+  id: number | string
+): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`/api/admin/students/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to delete student');
+  }
+
+  return data;
+}
+
+export interface StudentDeviceDetail {
+  studentId: number;
+  usn: string;
+  studentName: string;
+  department: string;
+  isBound: boolean;
+  devices: Array<{
+    id: number;
+    publicKeyFingerprint: string;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+}
+
+/**
+ * Get device binding details for a student
+ */
+export async function getStudentDeviceAdmin(
+  id: number | string
+): Promise<StudentDeviceDetail> {
+  const res = await fetch(`/api/admin/students/${id}/device`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to fetch student device details');
+  }
+
+  return data.data;
+}
+
+/**
+ * Reset/Unbind student device binding
+ */
+export async function resetStudentDeviceAdmin(
+  id: number | string
+): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`/api/admin/students/${id}/device/reset`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to reset student device binding');
+  }
+
+  return data;
+}

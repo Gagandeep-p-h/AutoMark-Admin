@@ -73,7 +73,7 @@ export function Inp({
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  const isGood = ['active', 'linked', 'present'].includes(status.toLowerCase())
+  const isGood = ['active', 'linked', 'present', 'registered', 'bound'].includes(status.toLowerCase())
   const isWarn = ['pending', 'leave'].includes(status.toLowerCase())
   
   let bgClass = 'bg-muted text-muted-foreground border-border'
