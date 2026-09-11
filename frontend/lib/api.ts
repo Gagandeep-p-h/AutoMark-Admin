@@ -57,8 +57,9 @@ export interface FacultyRecord {
   email: string;
   employeeId: string;
   department: string;
-  designation?: string;
-  status: string;
+  departmentCode?: string;
+  designation?: string | null;
+  status?: string;
 }
 
 // Client or Server base URL determination
@@ -251,31 +252,46 @@ export async function getDepartments(): Promise<DepartmentRecord[]> {
 /**
  * Fetch faculty
  */
-export async function getFaculty(token?: string): Promise<{ faculty: FacultyRecord[]; isLive: boolean }> {
+export async function getFaculty(
+  token?: string,
+  options?: { department?: string; filter?: string; search?: string }
+): Promise<{ faculty: FacultyRecord[]; isLive: boolean; isHod?: boolean; department?: string | null }> {
   try {
+    const params = new URLSearchParams();
+    if (options?.department) params.append('department', options.department);
+    if (options?.filter) params.append('filter', options.filter);
+    if (options?.search) params.append('search', options.search);
+
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
     const headers: Record<string, string> = { 'Accept': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(`${getApiBase()}/faculty`, {
+    const endpoint = typeof window !== 'undefined'
+      ? `/api/admin/faculty${queryStr}`
+      : `${getApiBase()}/admin/faculty${queryStr}`;
+
+    const res = await fetch(endpoint, {
       method: 'GET',
       headers,
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(6000),
     });
 
     if (res.ok) {
       const json = await res.json();
-      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+      if (json.success && Array.isArray(json.data)) {
         return {
           faculty: json.data.map((f: any) => ({
             id: f.id,
             name: f.name || f.user?.name || 'Faculty Member',
             email: f.email || f.user?.email || '',
             employeeId: f.employeeId || `FAC-${f.id}`,
-            department: f.department?.name || 'Academic Dept',
-            designation: f.designation || 'Professor',
-            status: 'Active',
+            department: f.department || f.department?.name || 'Academic Dept',
+            departmentCode: f.departmentCode || '',
+            designation: f.designation || null,
           })),
           isLive: true,
+          isHod: json.isHod,
+          department: json.department,
         };
       }
     }
@@ -283,10 +299,10 @@ export async function getFaculty(token?: string): Promise<{ faculty: FacultyReco
 
   return {
     faculty: [
-      { id: 1, name: 'Dr. Ramesh Kumar', employeeId: 'FAC001', department: 'Computer Science', designation: 'Professor & HOD', email: 'ramesh@smartattend.edu', status: 'Active' },
-      { id: 2, name: 'Prof. Sunita Deshmukh', employeeId: 'FAC002', department: 'Computer Science', designation: 'Associate Professor', email: 'sunita@smartattend.edu', status: 'Active' },
-      { id: 3, name: 'Dr. Vivek Sharma', employeeId: 'FAC003', department: 'Electronics', designation: 'Professor', email: 'vivek@smartattend.edu', status: 'Active' },
-      { id: 4, name: 'Prof. Priya Nair', employeeId: 'FAC004', department: 'Information Tech', designation: 'Assistant Professor', email: 'priya@smartattend.edu', status: 'Active' },
+      { id: 1, name: 'Dr. Ramesh Kumar', employeeId: 'FAC001', department: 'Computer Science', designation: 'Professor & HOD', email: 'ramesh@smartattend.edu' },
+      { id: 2, name: 'Prof. Sunita Deshmukh', employeeId: 'FAC002', department: 'Computer Science', designation: 'Associate Professor', email: 'sunita@smartattend.edu' },
+      { id: 3, name: 'Dr. Vivek Sharma', employeeId: 'FAC003', department: 'Electronics', designation: 'Professor', email: 'vivek@smartattend.edu' },
+      { id: 4, name: 'Prof. Priya Nair', employeeId: 'FAC004', department: 'Information Tech', designation: 'Assistant Professor', email: 'priya@smartattend.edu' },
     ],
     isLive: false,
   };
@@ -666,3 +682,150 @@ export async function resetStudentDeviceAdmin(
 
   return data;
 }
+
+/**
+ * Admin: Add Faculty manually
+ */
+export async function createFacultyAdmin(payload: {
+  name: string;
+  employeeId: string;
+  department?: string;
+  departmentId?: number;
+  designation: string;
+  email?: string;
+  password?: string;
+}): Promise<{ success: boolean; message: string; data?: any; faculty?: any }> {
+  const res = await fetch('/api/admin/faculty', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to add faculty member');
+  }
+
+  return data;
+}
+
+/**
+ * Admin: Update Faculty
+ */
+export async function updateFacultyAdmin(
+  id: number | string,
+  payload: {
+    name?: string;
+    employeeId?: string;
+    department?: string;
+    departmentId?: number;
+    designation?: string;
+  }
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const res = await fetch(`/api/admin/faculty/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to update faculty member');
+  }
+
+  return data;
+}
+
+/**
+ * Admin: Delete Faculty
+ */
+export async function deleteFacultyAdmin(
+  id: number | string
+): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`/api/admin/faculty/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Accept': 'application/json',
+    },
+  });
+
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || 'Failed to delete faculty member');
+  }
+
+  return data;
+}
+
+/**
+ * Download Faculty export in PDF, XLS, or XLSX
+ */
+export async function downloadFacultyExport(options: {
+  format: 'pdf' | 'xls' | 'xlsx';
+  department?: string;
+  filter?: string;
+  search?: string;
+}): Promise<void> {
+  const params = new URLSearchParams();
+  params.append('format', options.format);
+  if (options.department) params.append('department', options.department);
+  if (options.filter) params.append('filter', options.filter);
+  if (options.search) params.append('search', options.search);
+
+  const res = await fetch(`/api/admin/faculty/export?${params.toString()}`);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Failed to export faculty records');
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `faculty_${options.filter || options.department || 'all'}_${new Date().toISOString().split('T')[0]}.${options.format}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Download Student export in PDF, XLS, or XLSX
+ */
+export async function downloadStudentsExport(options: {
+  format: 'pdf' | 'xls' | 'xlsx';
+  department?: string;
+  section?: string;
+  lab?: string;
+  search?: string;
+}): Promise<void> {
+  const params = new URLSearchParams();
+  params.append('format', options.format);
+  if (options.department) params.append('department', options.department);
+  if (options.section) params.append('section', options.section);
+  if (options.lab) params.append('lab', options.lab);
+  if (options.search) params.append('search', options.search);
+
+  const res = await fetch(`/api/admin/students/export?${params.toString()}`);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Failed to export student records');
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `students_${options.department || 'all'}_${new Date().toISOString().split('T')[0]}.${options.format}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+

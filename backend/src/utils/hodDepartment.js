@@ -12,12 +12,21 @@
 
 export const HOD_DEPARTMENT_MAP = {
   'csehod@klsvdit.edu.in': 'CSE',
+  'cse.hod@smartattend.edu': 'CSE',
+  'csehod@smartattend.edu': 'CSE',
   'aimlhod@klsvdit.edu.in': 'AIML',
+  'aiml.hod@smartattend.edu': 'AIML',
+  'aimlhod@smartattend.edu': 'AIML',
   'ecehod@klsvdit.edu.in': 'ECE',
+  'ece.hod@smartattend.edu': 'ECE',
   'eeehod@klsvdit.edu.in': 'EEE',
+  'eee.hod@smartattend.edu': 'EEE',
   'mechhod@klsvdit.edu.in': 'MECH',
+  'mech.hod@smartattend.edu': 'MECH',
   'civilhod@klsvdit.edu.in': 'CIVIL',
+  'civil.hod@smartattend.edu': 'CIVIL',
   'cse-dshod@klsvdit.edu.in': 'CSE-DS',
+  'cse-ds.hod@smartattend.edu': 'CSE-DS',
 };
 
 /**

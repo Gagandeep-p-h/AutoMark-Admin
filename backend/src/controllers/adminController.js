@@ -1,7 +1,10 @@
 import { db } from "../prisma/db.js";
 import bcrypt from "bcryptjs";
+import * as xlsx from "xlsx";
 import { getHodDepartment } from "../utils/hodDepartment.js";
 import { parseStudentFile } from "../utils/studentFileParser.js";
+import { generatePdfTableBuffer } from "../utils/pdfGenerator.js";
+import { generateSecureTemporaryCredential } from "../utils/credentialGenerator.js";
 
 export const getAdminDashboard = async (req, res) => {
   try {
@@ -350,6 +353,7 @@ export const getAdminStudents = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: result,
+      students: result,
       total: result.length,
       isHod: Boolean(hodDepartment),
       department: targetDepartment,
@@ -1492,6 +1496,851 @@ export const deleteAdminStudent = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to delete student",
+    });
+  }
+};
+
+/**
+ * GET /api/admin/faculty
+ * Retrieves faculty directory with HOD department isolation and DEAN filtering.
+ */
+export const getAdminFaculty = async (req, res) => {
+  try {
+    const callerEmail = req.user?.email;
+    const isAdmin = req.user?.role === "ADMIN";
+    const hodDepartment = getHodDepartment(callerEmail);
+    const isHod = Boolean(hodDepartment);
+
+    if (!isAdmin && !isHod) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You do not have permission to access the faculty directory.",
+      });
+    }
+
+    // SECURITY ENFORCEMENT:
+    // If caller is an HOD, their department is strictly locked from their verified JWT.
+    let targetDepartment = null;
+    if (hodDepartment) {
+      targetDepartment = hodDepartment;
+    } else {
+      const queryDept = (req.query.department || "").trim().toUpperCase();
+      if (queryDept && queryDept !== "ALL" && queryDept !== "DEAN" && queryDept !== "ALL DEPARTMENTS") {
+        targetDepartment = queryDept;
+      }
+    }
+
+    const isDeanFilter =
+      String(req.query.filter || req.query.department || "").trim().toUpperCase() === "DEAN" ||
+      String(req.query.isDean || "").toLowerCase() === "true";
+
+    const faculties = await db.orm.public.Faculty.all();
+    const users = await db.orm.public.User.all();
+    const departments = await db.orm.public.Department.all();
+
+    let result = (faculties || []).map((f) => {
+      const u = users.find((user) => user.id === f.userId);
+      const d = departments.find((dept) => dept.id === f.departmentId);
+      return {
+        id: f.id,
+        userId: f.userId,
+        name: u?.name || "Unknown",
+        email: u?.email || "",
+        employeeId: f.employeeId,
+        department: d?.name || "Unknown",
+        departmentCode: d?.code || "Unknown",
+        departmentId: f.departmentId,
+        designation: f.designation || null,
+      };
+    });
+
+    // 1. Department Filter / HOD Isolation
+    if (targetDepartment) {
+      result = result.filter(
+        (f) =>
+          f.departmentCode.toUpperCase() === targetDepartment.toUpperCase() ||
+          f.department.toLowerCase().includes(targetDepartment.toLowerCase())
+      );
+    }
+
+    // 2. DEAN Filter (matches faculty whose designation contains "Dean", case-insensitive)
+    if (isDeanFilter) {
+      result = result.filter((f) =>
+        f.designation && String(f.designation).toLowerCase().includes("dean")
+      );
+    }
+
+    // 3. Search Filter: Faculty Name, Employee ID, Department, Designation
+    const searchTerm = (req.query.search || req.query.query || req.query.q || "")
+      .trim()
+      .toLowerCase();
+    if (searchTerm) {
+      result = result.filter(
+        (f) =>
+          f.name.toLowerCase().includes(searchTerm) ||
+          f.employeeId.toLowerCase().includes(searchTerm) ||
+          f.department.toLowerCase().includes(searchTerm) ||
+          f.departmentCode.toLowerCase().includes(searchTerm) ||
+          (f.designation && String(f.designation).toLowerCase().includes(searchTerm))
+      );
+    }
+
+    // Sort by name ASC
+    result.sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+      faculty: result,
+      total: result.length,
+      isHod: Boolean(hodDepartment),
+      department: targetDepartment,
+    });
+  } catch (error) {
+    console.error("Get admin faculty error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load faculty records",
+    });
+  }
+};
+
+/**
+ * POST /api/admin/faculty
+ * Adds a new faculty member manually.
+ * Enforces HOD department isolation and validates unique employeeId & email.
+ */
+export const createAdminFaculty = async (req, res) => {
+  try {
+    const callerEmail = req.user?.email;
+    const isAdmin = req.user?.role === "ADMIN";
+    const hodDepartment = getHodDepartment(callerEmail);
+    const isHod = Boolean(hodDepartment);
+
+    if (!isAdmin && !isHod) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You do not have permission to add faculty.",
+      });
+    }
+
+    const { name, employeeId, department, departmentId, designation, email, password } = req.body;
+
+    // Validation of required fields
+    if (!name || !employeeId) {
+      return res.status(400).json({
+        success: false,
+        message: "Faculty Name and Employee ID are required",
+      });
+    }
+
+    if (!designation) {
+      return res.status(400).json({
+        success: false,
+        message: "Designation is required",
+      });
+    }
+
+    const departments = await db.orm.public.Department.all();
+    let selectedDept = null;
+
+    if (hodDepartment) {
+      // HOD can only add faculty to their authorized department
+      selectedDept = departments.find(
+        (d) => d.code?.toUpperCase() === hodDepartment.toUpperCase()
+      );
+      if (!selectedDept) {
+        return res.status(403).json({
+          success: false,
+          message: `Department ${hodDepartment} not found in database`,
+        });
+      }
+    } else if (departmentId) {
+      selectedDept = departments.find((d) => d.id === Number(departmentId));
+    } else if (department) {
+      selectedDept = departments.find(
+        (d) =>
+          d.code?.toUpperCase() === String(department).trim().toUpperCase() ||
+          d.name?.toLowerCase() === String(department).trim().toLowerCase()
+      );
+    }
+
+    if (!selectedDept) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid Department is required",
+      });
+    }
+
+    const normalizedEmployeeId = String(employeeId).trim().toUpperCase();
+    const normalizedEmail = email
+      ? String(email).trim().toLowerCase()
+      : `${normalizedEmployeeId.toLowerCase()}@klsvdit.edu.in`;
+
+    // Check duplicate employee ID
+    const existingFaculty = await db.orm.public.Faculty.all();
+    if (existingFaculty.some((f) => f.employeeId.toUpperCase() === normalizedEmployeeId)) {
+      return res.status(409).json({
+        success: false,
+        message: `Employee ID "${normalizedEmployeeId}" already exists`,
+      });
+    }
+
+    // Check duplicate email
+    const existingUsers = await db.orm.public.User.all();
+    if (existingUsers.some((u) => u.email.toLowerCase() === normalizedEmail)) {
+      return res.status(409).json({
+        success: false,
+        message: `Email "${normalizedEmail}" already exists`,
+      });
+    }
+
+    // Secure credential handling:
+    // 1. If caller explicitly provides a strong password (>= 8 chars), use it.
+    // 2. Otherwise, generate a cryptographically random, high-entropy temporary credential.
+    // NEVER use a universal known password (e.g. 'admin123').
+    let rawPassword = password;
+    let temporaryPassword = null;
+
+    if (typeof rawPassword === "string" && rawPassword.trim().length >= 8) {
+      rawPassword = rawPassword.trim();
+    } else if (rawPassword && typeof rawPassword === "string" && rawPassword.trim().length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters long",
+      });
+    } else {
+      temporaryPassword = generateSecureTemporaryCredential();
+      rawPassword = temporaryPassword;
+    }
+
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
+
+    // 1. Create User
+    const user = await db.orm.public.User.create({
+      name: String(name).trim(),
+      email: normalizedEmail,
+      passwordHash,
+      role: "FACULTY",
+      isActive: true,
+    });
+
+    // 2. Create Faculty record
+    const faculty = await db.orm.public.Faculty.create({
+      userId: user.id,
+      employeeId: normalizedEmployeeId,
+      departmentId: selectedDept.id,
+      designation: String(designation).trim(),
+    });
+
+    const facultyData = {
+      id: faculty.id,
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      employeeId: faculty.employeeId,
+      department: selectedDept.name,
+      departmentCode: selectedDept.code,
+      departmentId: selectedDept.id,
+      designation: faculty.designation,
+      ...(temporaryPassword ? { temporaryPassword } : {}),
+    };
+
+    return res.status(201).json({
+      success: true,
+      message: "Faculty member added successfully",
+      data: facultyData,
+      faculty: facultyData,
+    });
+  } catch (error) {
+    console.error("Create admin faculty error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to add faculty member",
+    });
+  }
+};
+
+/**
+ * PATCH /api/admin/faculty/:id
+ * Updates an existing faculty member's Name, Employee ID, Department, Designation.
+ * Enforces HOD department isolation.
+ */
+export const updateAdminFaculty = async (req, res) => {
+  try {
+    const facultyId = parseInt(req.params.id, 10);
+    if (isNaN(facultyId)) {
+      return res.status(400).json({ success: false, message: "Invalid faculty ID" });
+    }
+
+    const callerEmail = req.user?.email || "";
+    const isAdmin = req.user?.role === "ADMIN";
+    const hodDepartment = getHodDepartment(callerEmail);
+    const isHod = Boolean(hodDepartment);
+
+    if (!isAdmin && !isHod) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You do not have permission to update faculty.",
+      });
+    }
+
+    const faculties = await db.orm.public.Faculty.where({ id: facultyId }).all();
+    if (!faculties || faculties.length === 0) {
+      return res.status(404).json({ success: false, message: "Faculty member not found" });
+    }
+    const faculty = faculties[0];
+
+    const departments = await db.orm.public.Department.all();
+    const currentDept = departments.find((d) => d.id === faculty.departmentId);
+
+    // HOD ISOLATION: verify target faculty belongs to HOD's department
+    if (isHod && (!currentDept || currentDept.code?.toUpperCase() !== hodDepartment.toUpperCase())) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You cannot update faculty outside your authorized department.",
+      });
+    }
+
+    const { name, employeeId, department, departmentId, designation } = req.body;
+
+    // HOD ISOLATION: An HOD MUST NOT be able to move faculty to another department.
+    if (isHod && (department !== undefined || departmentId !== undefined)) {
+      const reqDeptStr = String(department || "").trim().toUpperCase();
+      const reqDeptId =
+        departmentId !== undefined && departmentId !== null && String(departmentId).trim() !== ""
+          ? Number(departmentId)
+          : null;
+
+      const targetDept = departments.find(
+        (d) =>
+          (reqDeptId !== null && !isNaN(reqDeptId) && d.id === reqDeptId) ||
+          (reqDeptStr &&
+            (d.code?.toUpperCase() === reqDeptStr ||
+              d.name?.toUpperCase() === reqDeptStr))
+      );
+
+      if (targetDept) {
+        if (targetDept.code?.toUpperCase() !== hodDepartment.toUpperCase()) {
+          return res.status(403).json({
+            success: false,
+            message: "Forbidden: HODs cannot move faculty to another department.",
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid or nonexistent department specified.",
+        });
+      }
+    }
+
+    // 1. Update Name on User
+    let updatedName = undefined;
+    if (name && String(name).trim().length > 0) {
+      updatedName = String(name).trim();
+      await db.orm.public.User.where({ id: faculty.userId }).update({ name: updatedName });
+    }
+
+    // 2. Check and update Employee ID
+    const facultyUpdates = {};
+    if (employeeId && String(employeeId).trim().toUpperCase() !== faculty.employeeId) {
+      const normalizedEmployeeId = String(employeeId).trim().toUpperCase();
+      const allFaculty = await db.orm.public.Faculty.all();
+      if (allFaculty.some((f) => f.id !== faculty.id && f.employeeId.toUpperCase() === normalizedEmployeeId)) {
+        return res.status(409).json({
+          success: false,
+          message: `Employee ID "${normalizedEmployeeId}" is already assigned to another faculty member.`,
+        });
+      }
+      facultyUpdates.employeeId = normalizedEmployeeId;
+    }
+
+    // 3. Update Designation
+    if (designation !== undefined) {
+      facultyUpdates.designation = String(designation || "").trim() || null;
+    }
+
+    // 4. Update Department (Super Admin can change faculty department to any valid department in PostgreSQL)
+    if (isAdmin && (department !== undefined || departmentId !== undefined)) {
+      const deptQuery = String(department || "").trim();
+      const deptIdQuery =
+        departmentId !== undefined && departmentId !== null && String(departmentId).trim() !== ""
+          ? Number(departmentId)
+          : null;
+
+      const newDept = departments.find(
+        (d) =>
+          (deptIdQuery !== null && !isNaN(deptIdQuery) && d.id === deptIdQuery) ||
+          (deptQuery &&
+            (d.code?.toUpperCase() === deptQuery.toUpperCase() ||
+              d.name?.toLowerCase() === deptQuery.toLowerCase()))
+      );
+
+      if (!newDept) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid or nonexistent department specified.",
+        });
+      }
+
+      facultyUpdates.departmentId = newDept.id;
+    }
+
+    if (Object.keys(facultyUpdates).length > 0) {
+      await db.orm.public.Faculty.where({ id: faculty.id }).update(facultyUpdates);
+    }
+
+    // Return updated profile
+    const users = await db.orm.public.User.where({ id: faculty.userId }).all();
+    const updatedUser = users[0];
+    const updatedDept = departments.find(
+      (d) => d.id === (facultyUpdates.departmentId || faculty.departmentId)
+    );
+
+    const updatedFacultyData = {
+      id: faculty.id,
+      name: updatedName || updatedUser?.name || "Faculty",
+      employeeId: facultyUpdates.employeeId || faculty.employeeId,
+      department: updatedDept?.name || currentDept?.name,
+      departmentCode: updatedDept?.code || currentDept?.code,
+      departmentId: updatedDept?.id || faculty.departmentId,
+      designation:
+        facultyUpdates.designation !== undefined ? facultyUpdates.designation : faculty.designation,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: "Faculty member updated successfully",
+      data: updatedFacultyData,
+      faculty: updatedFacultyData,
+    });
+  } catch (error) {
+    console.error("Update admin faculty error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update faculty member",
+    });
+  }
+};
+
+/**
+ * DELETE /api/admin/faculty/:id
+ * Safely deletes a faculty member with dependency guards and HOD isolation.
+ */
+export const deleteAdminFaculty = async (req, res) => {
+  try {
+    const facultyId = parseInt(req.params.id, 10);
+    if (isNaN(facultyId)) {
+      return res.status(400).json({ success: false, message: "Invalid faculty ID" });
+    }
+
+    const callerEmail = req.user?.email || "";
+    const isAdmin = req.user?.role === "ADMIN";
+    const hodDepartment = getHodDepartment(callerEmail);
+    const isHod = Boolean(hodDepartment);
+
+    if (!isAdmin && !isHod) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You do not have permission to delete faculty.",
+      });
+    }
+
+    const faculties = await db.orm.public.Faculty.where({ id: facultyId }).all();
+    if (!faculties || faculties.length === 0) {
+      return res.status(404).json({ success: false, message: "Faculty member not found" });
+    }
+    const faculty = faculties[0];
+
+    const departments = await db.orm.public.Department.all();
+    const currentDept = departments.find((d) => d.id === faculty.departmentId);
+
+    // HOD ISOLATION: verify target faculty belongs to HOD's department
+    if (isHod && (!currentDept || currentDept.code?.toUpperCase() !== hodDepartment.toUpperCase())) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You cannot delete faculty outside your authorized department.",
+      });
+    }
+
+    // Safest deletion guard: Check if faculty has active class assignments
+    const classes = await db.orm.public.Class.where({ facultyId: faculty.id }).all();
+    if (classes && classes.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete faculty member assigned to ${classes.length} active academic class(es). Please reassign or remove class assignments first.`,
+      });
+    }
+
+    // Clean up notifications for faculty user
+    if (faculty.userId) {
+      const notifs = await db.orm.public.Notification.where({ userId: faculty.userId }).all();
+      if (notifs && notifs.length > 0) {
+        await db.orm.public.Notification.where({ userId: faculty.userId }).delete();
+      }
+    }
+
+    // Delete Faculty record
+    await db.orm.public.Faculty.where({ id: faculty.id }).delete();
+
+    // Delete associated User record if role is FACULTY
+    if (faculty.userId) {
+      const users = await db.orm.public.User.where({ id: faculty.userId }).all();
+      const user = users[0];
+      if (user && user.role === "FACULTY") {
+        await db.orm.public.User.where({ id: user.id }).delete();
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Faculty member deleted successfully.",
+      data: {
+        id: faculty.id,
+        employeeId: faculty.employeeId,
+      },
+    });
+  } catch (error) {
+    console.error("Delete admin faculty error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete faculty member",
+    });
+  }
+};
+
+/**
+ * GET /api/admin/faculty/export
+ * Generates server-side authorized exports (PDF, XLS, XLSX) for faculty.
+ * Respects search, department filter, DEAN filter, and strict HOD isolation.
+ * Columns: Faculty Name, Employee ID, Department, Designation (Status is omitted).
+ */
+export const exportAdminFaculty = async (req, res) => {
+  try {
+    const callerEmail = req.user?.email;
+    const isAdmin = req.user?.role === "ADMIN";
+    const hodDepartment = getHodDepartment(callerEmail);
+    const isHod = Boolean(hodDepartment);
+
+    if (!isAdmin && !isHod) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You do not have permission to export faculty records.",
+      });
+    }
+
+    let targetDepartment = null;
+    if (hodDepartment) {
+      targetDepartment = hodDepartment;
+    } else {
+      const queryDept = (req.query.department || "").trim().toUpperCase();
+      if (queryDept && queryDept !== "ALL" && queryDept !== "DEAN" && queryDept !== "ALL DEPARTMENTS") {
+        targetDepartment = queryDept;
+      }
+    }
+
+    const isDeanFilter =
+      String(req.query.filter || req.query.department || "").trim().toUpperCase() === "DEAN" ||
+      String(req.query.isDean || "").toLowerCase() === "true";
+
+    const faculties = await db.orm.public.Faculty.all();
+    const users = await db.orm.public.User.all();
+    const departments = await db.orm.public.Department.all();
+
+    let list = (faculties || []).map((f) => {
+      const u = users.find((user) => user.id === f.userId);
+      const d = departments.find((dept) => dept.id === f.departmentId);
+      return {
+        name: u?.name || "Unknown",
+        employeeId: f.employeeId,
+        department: d?.name || "Unknown",
+        departmentCode: d?.code || "Unknown",
+        designation: f.designation || "N/A",
+      };
+    });
+
+    if (targetDepartment) {
+      list = list.filter(
+        (f) =>
+          f.departmentCode.toUpperCase() === targetDepartment.toUpperCase() ||
+          f.department.toLowerCase().includes(targetDepartment.toLowerCase())
+      );
+    }
+
+    if (isDeanFilter) {
+      list = list.filter(
+        (f) => f.designation && String(f.designation).toLowerCase().includes("dean")
+      );
+    }
+
+    const searchTerm = (req.query.search || req.query.query || req.query.q || "")
+      .trim()
+      .toLowerCase();
+    if (searchTerm) {
+      list = list.filter(
+        (f) =>
+          f.name.toLowerCase().includes(searchTerm) ||
+          f.employeeId.toLowerCase().includes(searchTerm) ||
+          f.department.toLowerCase().includes(searchTerm) ||
+          f.departmentCode.toLowerCase().includes(searchTerm) ||
+          f.designation.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    list.sort((a, b) => a.name.localeCompare(b.name));
+
+    const format = String(req.query.format || "xlsx").toLowerCase();
+    const timestamp = new Date().toISOString().split("T")[0];
+    const deptTag = targetDepartment || (isDeanFilter ? "DEAN" : "all");
+
+    if (format === "pdf") {
+      const columns = [
+        { label: "Faculty Name", width: 170 },
+        { label: "Employee ID", width: 90 },
+        { label: "Department", width: 150 },
+        { label: "Designation", width: 110 },
+      ];
+      const rows = list.map((f) => [f.name, f.employeeId, f.department, f.designation]);
+      const subtitle = `Filter: ${isDeanFilter ? "Dean Category" : targetDepartment || "All Departments"} | Date: ${timestamp} | Total: ${list.length} records`;
+
+      const pdfBuffer = await generatePdfTableBuffer({
+        title: "SmartAttend - Faculty Directory",
+        subtitle,
+        columns,
+        rows,
+        orientation: "portrait",
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="faculty_${deptTag}_${timestamp}.pdf"`
+      );
+      return res.send(pdfBuffer);
+    }
+
+    // Excel export (XLS or XLSX)
+    const headerRow = ["Faculty Name", "Employee ID", "Department", "Designation"];
+    const aoa = [
+      headerRow,
+      ...list.map((f) => [f.name, f.employeeId, f.department, f.designation]),
+    ];
+
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.aoa_to_sheet(aoa);
+    xlsx.utils.book_append_sheet(wb, ws, "Faculty");
+
+    if (format === "xls") {
+      const xlsBuffer = xlsx.write(wb, { type: "buffer", bookType: "biff8" });
+      res.setHeader("Content-Type", "application/vnd.ms-excel");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="faculty_${deptTag}_${timestamp}.xls"`
+      );
+      return res.send(xlsBuffer);
+    }
+
+    // Default XLSX
+    const xlsxBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="faculty_${deptTag}_${timestamp}.xlsx"`
+    );
+    return res.send(xlsxBuffer);
+  } catch (error) {
+    console.error("Export admin faculty error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to export faculty records",
+    });
+  }
+};
+
+/**
+ * GET /api/admin/students/export
+ * Generates server-side authorized exports (PDF, XLS, XLSX) for students.
+ * Preserves USN numeric LOW -> HIGH sorting, division, lab batch, and strict HOD isolation.
+ * Columns: USN, Student Name, Department, Semester, Section, Lab Batch, Academic Year, Email, Device Status.
+ */
+export const exportAdminStudents = async (req, res) => {
+  try {
+    const callerEmail = req.user?.email;
+    const hodDepartment = getHodDepartment(callerEmail);
+
+    let targetDepartment = null;
+    if (hodDepartment) {
+      targetDepartment = hodDepartment;
+    } else {
+      const queryDept = (req.query.department || "").trim().toUpperCase();
+      if (queryDept && queryDept !== "ALL" && queryDept !== "ALL DEPARTMENTS") {
+        targetDepartment = queryDept;
+      }
+    }
+
+    const students = await db.orm.public.Student.all();
+    const users = await db.orm.public.User.all();
+    const departments = await db.orm.public.Department.all();
+    const devices = await db.orm.public.StudentDevice.all();
+
+    let list = (students || []).map((s) => {
+      const u = users.find((user) => user.id === s.userId);
+      const d = departments.find((dept) => dept.id === s.departmentId);
+      const bound = devices.some((dev) => dev.studentId === s.id && dev.isActive === true);
+      return {
+        usn: s.registerNumber,
+        name: u?.name || "Unknown",
+        department: d?.name || "Unknown",
+        departmentCode: d?.code || "Unknown",
+        departmentId: s.departmentId,
+        semester: s.semester,
+        section: s.section || "A",
+        lab: s.Lab || `${s.section || "A"}1`,
+        academicYear: s.academicYear || "2026-27",
+        email: u?.email || "",
+        deviceStatus: bound ? "Registered" : "Not Registered",
+      };
+    });
+
+    // 1. Department Filter / HOD Isolation
+    if (targetDepartment) {
+      list = list.filter(
+        (s) =>
+          s.departmentCode.toUpperCase() === targetDepartment.toUpperCase() ||
+          s.department.toLowerCase().includes(targetDepartment.toLowerCase())
+      );
+    }
+
+    // 2. Division / Section Filter
+    const sectionFilter = (req.query.section || req.query.division || "").trim().toUpperCase();
+    if (sectionFilter) {
+      list = list.filter((s) => s.section === sectionFilter);
+    }
+
+    // 3. Lab Batch Filter
+    const labFilter = (req.query.lab || req.query.labBatch || "").trim().toUpperCase();
+    if (labFilter) {
+      list = list.filter((s) => s.lab === labFilter);
+    }
+
+    // 4. Search Filter
+    const searchTerm = (req.query.search || req.query.query || req.query.q || "")
+      .trim()
+      .toLowerCase();
+    if (searchTerm) {
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(searchTerm) ||
+          s.usn.toLowerCase().includes(searchTerm) ||
+          s.email.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // 5. Sort by USN LOW -> HIGH numeric-aware
+    list.sort((a, b) => compareUsn(a.usn, b.usn));
+
+    const format = String(req.query.format || "xlsx").toLowerCase();
+    const timestamp = new Date().toISOString().split("T")[0];
+    const deptTag = targetDepartment || "all";
+
+    if (format === "pdf") {
+      const columns = [
+        { label: "USN", width: 80 },
+        { label: "Student Name", width: 140 },
+        { label: "Department", width: 110 },
+        { label: "Sem", width: 35 },
+        { label: "Sec", width: 35 },
+        { label: "Lab", width: 40 },
+        { label: "Academic Year", width: 80 },
+      ];
+      const rows = list.map((s) => [
+        s.usn,
+        s.name,
+        s.departmentCode || s.department,
+        String(s.semester),
+        s.section,
+        s.lab,
+        s.academicYear,
+      ]);
+      const subtitle = `Department: ${targetDepartment || "All"} | Date: ${timestamp} | Total: ${list.length} students (Sorted USN Low -> High)`;
+
+      const pdfBuffer = await generatePdfTableBuffer({
+        title: "SmartAttend - Student Directory",
+        subtitle,
+        columns,
+        rows,
+        orientation: "portrait",
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="students_${deptTag}_${timestamp}.pdf"`
+      );
+      return res.send(pdfBuffer);
+    }
+
+    // Excel export (XLS or XLSX)
+    const headerRow = [
+      "USN",
+      "Student Name",
+      "Department",
+      "Semester",
+      "Section",
+      "Lab Batch",
+      "Academic Year",
+      "Email",
+      "Device Status",
+    ];
+    const aoa = [
+      headerRow,
+      ...list.map((s) => [
+        s.usn,
+        s.name,
+        s.department,
+        s.semester,
+        s.section,
+        s.lab,
+        s.academicYear,
+        s.email,
+        s.deviceStatus,
+      ]),
+    ];
+
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.aoa_to_sheet(aoa);
+    xlsx.utils.book_append_sheet(wb, ws, "Students");
+
+    if (format === "xls") {
+      const xlsBuffer = xlsx.write(wb, { type: "buffer", bookType: "biff8" });
+      res.setHeader("Content-Type", "application/vnd.ms-excel");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="students_${deptTag}_${timestamp}.xls"`
+      );
+      return res.send(xlsBuffer);
+    }
+
+    // Default XLSX
+    const xlsxBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="students_${deptTag}_${timestamp}.xlsx"`
+    );
+    return res.send(xlsxBuffer);
+  } catch (error) {
+    console.error("Export admin students error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to export student records",
     });
   }
 };

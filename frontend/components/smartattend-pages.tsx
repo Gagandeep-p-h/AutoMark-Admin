@@ -30,13 +30,19 @@ import {
   AlertCircle,
   Check,
   Smartphone,
-  Key
+  Key,
+  ChevronDown
 } from 'lucide-react'
 import { AdminShell, AdminContent, StatusBadge, Label, Inp } from './admin-shell'
 import {
   getStudents,
   createStudent,
   getFaculty,
+  createFacultyAdmin,
+  updateFacultyAdmin,
+  deleteFacultyAdmin,
+  downloadFacultyExport,
+  downloadStudentsExport,
   previewImportStudents,
   commitImportStudents,
   previewAssignDivision,
@@ -258,6 +264,10 @@ export function StudentsPage() {
   const [labPreviewData, setLabPreviewData] = useState<AssignLabBatchPreviewResult | null>(null)
   const [assigningLabBatch, setAssigningLabBatch] = useState(false)
   const [labActionMessage, setLabActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Student multi-format export state
+  const [showStudentExportDropdown, setShowStudentExportDropdown] = useState(false)
+  const [studentExporting, setStudentExporting] = useState(false)
 
   // Actions menu state
   const [openActionMenuId, setOpenActionMenuId] = useState<number | string | null>(null)
@@ -655,6 +665,22 @@ export function StudentsPage() {
     }
   }
 
+  const handleStudentExport = async (format: 'pdf' | 'xls' | 'xlsx') => {
+    try {
+      setStudentExporting(true)
+      setShowStudentExportDropdown(false)
+      await downloadStudentsExport({
+        format,
+        department: hodDepartment || undefined,
+        search: query || undefined,
+      })
+    } catch (err: any) {
+      alert(err.message || 'Failed to export students')
+    } finally {
+      setStudentExporting(false)
+    }
+  }
+
   const handleExportStudents = () => {
     if (students.length === 0) return
     const headers = ['USN', 'Name', 'Department', 'Semester', 'Section', 'Lab Batch', 'Academic Year', 'Email', 'Device Status']
@@ -841,13 +867,46 @@ export function StudentsPage() {
                 <Upload className="mr-2 h-4 w-4" />
                 Import Students
               </button>
-              <button 
-                onClick={handleExportStudents}
-                className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground shadow-sm transition-colors"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Export
-              </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowStudentExportDropdown(prev => !prev)}
+                  disabled={studentExporting}
+                  className="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground shadow-xs transition-colors"
+                >
+                  {studentExporting ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-1.5 h-4 w-4" />
+                  )}
+                  Export
+                  <ChevronDown className="ml-1 h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+                {showStudentExportDropdown && (
+                  <div className="absolute right-0 mt-1.5 w-48 rounded-xl border border-border bg-card shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95">
+                    <button
+                      onClick={() => handleStudentExport('pdf')}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 flex items-center gap-2.5 transition-colors"
+                    >
+                      <FileText className="h-4 w-4 text-rose-500" />
+                      PDF Document (.pdf)
+                    </button>
+                    <button
+                      onClick={() => handleStudentExport('xls')}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 flex items-center gap-2.5 transition-colors"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                      Excel 97-2004 (.xls)
+                    </button>
+                    <button
+                      onClick={() => handleStudentExport('xlsx')}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 flex items-center gap-2.5 transition-colors"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                      Excel Workbook (.xlsx)
+                    </button>
+                  </div>
+                )}
+              </div>
               <button 
                 onClick={() => setShowAddModal(true)}
                 className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
@@ -2101,41 +2160,307 @@ export function StudentsPage() {
 // ─── Faculty Page ─────────────────────────────────────────────────────────────
 export function FacultyPage() {
   const [query, setQuery] = useState('')
+  const [deptFilter, setDeptFilter] = useState('ALL')
   const [faculty, setFaculty] = useState<FacultyRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [isLive, setIsLive] = useState(false)
+  const [isHod, setIsHod] = useState(false)
+  const [hodDepartment, setHodDepartment] = useState<string | null>(null)
+
+  // 3-dot action menu
+  const [activeDropdownId, setActiveDropdownId] = useState<number | string | null>(null)
+
+  // Export dropdown
+  const [showExportDropdown, setShowExportDropdown] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  // Add Faculty modal
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addForm, setAddForm] = useState({
+    name: '',
+    employeeId: '',
+    department: 'CSE',
+    designation: 'Assistant Professor',
+    email: '',
+  })
+  const [addLoading, setAddLoading] = useState(false)
+  const [addError, setAddError] = useState('')
+
+  // Update Faculty modal
+  const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [updateForm, setUpdateForm] = useState<{
+    id: number | string;
+    name: string;
+    employeeId: string;
+    department: string;
+    designation: string;
+  }>({
+    id: '',
+    name: '',
+    employeeId: '',
+    department: '',
+    designation: '',
+  })
+  const [updateLoading, setUpdateLoading] = useState(false)
+  const [updateError, setUpdateError] = useState('')
+
+  // Toast notification
+  const [facultyToast, setFacultyToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Delete Faculty modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [facultyToDelete, setFacultyToDelete] = useState<FacultyRecord | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  // Created Faculty Credential Delivery Modal
+  const [createdCredential, setCreatedCredential] = useState<{
+    name: string;
+    employeeId: string;
+    email?: string;
+    temporaryPassword?: string;
+  } | null>(null)
+  const [copiedPassword, setCopiedPassword] = useState(false)
+
+  const FILTER_OPTIONS = [
+    'All Departments',
+    'CSE',
+    'AIML',
+    'ECE',
+    'EEE',
+    'MECH',
+    'CIVIL',
+    'CSE-DS',
+    'DEAN',
+  ]
+
+  const DEPT_OPTIONS = [
+    { code: 'CSE', name: 'Computer Science and Engineering' },
+    { code: 'AIML', name: 'Artificial Intelligence and Machine Learning' },
+    { code: 'ECE', name: 'Electronics and Communication' },
+    { code: 'EEE', name: 'Electrical and Electronics Engineering' },
+    { code: 'MECH', name: 'Mechanical Engineering' },
+    { code: 'CIVIL', name: 'Civil Engineering' },
+    { code: 'CSE-DS', name: 'Computer Science and Engineering (Data Science)' },
+  ]
+
+  const DESIGNATION_OPTIONS = [
+    'Assistant Professor',
+    'Associate Professor',
+    'Professor',
+    'Professor & HOD',
+    'Dean',
+    'Dean Academic',
+    'Dean Student Affairs',
+    'Dean R&D',
+  ]
+
+  const fetchFacultyList = async (activeDept = deptFilter) => {
+    setLoading(true)
+    try {
+      const res = await getFaculty(undefined, {
+        department: activeDept !== 'ALL' && activeDept !== 'DEAN' ? activeDept : undefined,
+        filter: activeDept === 'DEAN' ? 'DEAN' : undefined,
+        search: query || undefined,
+      })
+      setFaculty(res.faculty)
+      setIsLive(res.isLive)
+      setIsHod(Boolean(res.isHod))
+      setHodDepartment(res.department || null)
+      if (res.isHod && res.department) {
+        setAddForm(prev => ({ ...prev, department: res.department! }))
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let active = true
-    getFaculty().then(res => {
-      if (active) {
-        setFaculty(res.faculty)
-        setIsLive(res.isLive)
-        setLoading(false)
-      }
-    })
-    return () => { active = false }
+    fetchFacultyList(deptFilter)
+  }, [deptFilter])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setActiveDropdownId(null)
+      setShowExportDropdown(false)
+    }
+    window.addEventListener('click', handleClickOutside)
+    return () => window.removeEventListener('click', handleClickOutside)
   }, [])
 
-  const filtered = useMemo(
-    () => faculty.filter(f =>
-      f.name.toLowerCase().includes(query.toLowerCase()) ||
-      f.employeeId.toLowerCase().includes(query.toLowerCase()) ||
-      f.department.toLowerCase().includes(query.toLowerCase())
-    ),
-    [faculty, query]
-  )
+  const filtered = useMemo(() => {
+    return faculty.filter((f) => {
+      const q = query.trim().toLowerCase()
+      const matchesSearch =
+        !q ||
+        f.name.toLowerCase().includes(q) ||
+        f.employeeId.toLowerCase().includes(q) ||
+        (f.department && f.department.toLowerCase().includes(q)) ||
+        (f.departmentCode && f.departmentCode.toLowerCase().includes(q)) ||
+        (f.designation && f.designation.toLowerCase().includes(q))
+
+      const matchesDept =
+        deptFilter === 'ALL'
+          ? true
+          : deptFilter === 'DEAN'
+          ? Boolean(f.designation && f.designation.toLowerCase().includes('dean'))
+          : (f.departmentCode && f.departmentCode.toUpperCase() === deptFilter.toUpperCase()) ||
+            (f.department && f.department.toLowerCase().includes(deptFilter.toLowerCase()))
+
+      return matchesSearch && matchesDept
+    })
+  }, [faculty, query, deptFilter])
+
+  // Export handler
+  const handleExport = async (format: 'pdf' | 'xls' | 'xlsx') => {
+    try {
+      setExporting(true)
+      setShowExportDropdown(false)
+      await downloadFacultyExport({
+        format,
+        department: deptFilter !== 'ALL' && deptFilter !== 'DEAN' ? deptFilter : (hodDepartment || undefined),
+        filter: deptFilter === 'DEAN' ? 'DEAN' : undefined,
+        search: query || undefined,
+      })
+    } catch (err: any) {
+      alert(err.message || 'Failed to export faculty')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // Add Faculty handler
+  const handleAddFaculty = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAddError('')
+    if (!addForm.name.trim() || !addForm.employeeId.trim() || !addForm.designation.trim()) {
+      setAddError('Please fill in all required fields.')
+      return
+    }
+
+    try {
+      setAddLoading(true)
+      const res = await createFacultyAdmin({
+        name: addForm.name.trim(),
+        employeeId: addForm.employeeId.trim(),
+        department: hodDepartment || addForm.department,
+        designation: addForm.designation.trim(),
+        email: addForm.email.trim() || undefined,
+      })
+      setShowAddModal(false)
+
+      const tempPwd = res?.faculty?.temporaryPassword || res?.data?.temporaryPassword
+      if (tempPwd) {
+        setCreatedCredential({
+          name: addForm.name.trim(),
+          employeeId: addForm.employeeId.trim(),
+          email: addForm.email.trim(),
+          temporaryPassword: tempPwd,
+        })
+      }
+
+      setAddForm({
+        name: '',
+        employeeId: '',
+        department: hodDepartment || 'CSE',
+        designation: 'Assistant Professor',
+        email: '',
+      })
+      setFacultyToast({ type: 'success', text: `Faculty member "${addForm.name.trim()}" added successfully.` })
+      await fetchFacultyList()
+    } catch (err: any) {
+      setAddError(err.message || 'Failed to add faculty member.')
+    } finally {
+      setAddLoading(false)
+    }
+  }
+
+  // Open Update Modal
+  const openUpdateModal = (f: FacultyRecord) => {
+    setActiveDropdownId(null)
+    const matchDept = DEPT_OPTIONS.find(
+      (d) =>
+        d.code.toUpperCase() === (f.departmentCode || '').toUpperCase() ||
+        d.name.toLowerCase() === (f.department || '').toLowerCase()
+    )
+    setUpdateForm({
+      id: f.id,
+      name: f.name,
+      employeeId: f.employeeId,
+      department: isHod ? (hodDepartment || 'CSE') : (matchDept?.code || f.departmentCode || f.department || 'CSE'),
+      designation: f.designation || '',
+    })
+    setUpdateError('')
+    setShowUpdateModal(true)
+  }
+
+  // Update Faculty handler
+  const handleUpdateFaculty = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setUpdateError('')
+    if (!updateForm.name.trim() || !updateForm.employeeId.trim()) {
+      setUpdateError('Name and Employee ID cannot be empty.')
+      return
+    }
+
+    try {
+      setUpdateLoading(true)
+      await updateFacultyAdmin(updateForm.id, {
+        name: updateForm.name.trim(),
+        employeeId: updateForm.employeeId.trim(),
+        department: isHod ? undefined : updateForm.department,
+        designation: updateForm.designation.trim() || undefined,
+      })
+      setShowUpdateModal(false)
+      setFacultyToast({ type: 'success', text: `Faculty member "${updateForm.name.trim()}" updated successfully.` })
+      await fetchFacultyList()
+    } catch (err: any) {
+      setUpdateError(err.message || 'Failed to update faculty member.')
+    } finally {
+      setUpdateLoading(false)
+    }
+  }
+
+  // Open Delete Modal
+  const openDeleteModal = (f: FacultyRecord) => {
+    setActiveDropdownId(null)
+    setFacultyToDelete(f)
+    setDeleteError('')
+    setShowDeleteModal(true)
+  }
+
+  // Delete Faculty handler
+  const handleConfirmDelete = async () => {
+    if (!facultyToDelete) return
+    try {
+      setDeleteLoading(true)
+      setDeleteError('')
+      await deleteFacultyAdmin(facultyToDelete.id)
+      setShowDeleteModal(false)
+      setFacultyToast({ type: 'success', text: `Faculty member "${facultyToDelete.name}" deleted successfully.` })
+      setFacultyToDelete(null)
+      await fetchFacultyList()
+    } catch (err: any) {
+      setDeleteError(err.message || 'Failed to delete faculty member.')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
 
   return (
     <AdminShell>
       <AdminContent>
         <div className="space-y-6">
+          {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground">Faculty</h1>
                 {isLive ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
                     <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Synced with Backend
                   </span>
@@ -2144,25 +2469,149 @@ export function FacultyPage() {
                     Demo Mode
                   </span>
                 )}
+                {hodDepartment && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800">
+                    <span className="size-1.5 rounded-full bg-blue-500" />
+                    HOD: {hodDepartment}
+                  </span>
+                )}
               </div>
-              <p className="text-sm text-muted-foreground mt-1">Manage teaching staff and their department roles.</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Manage teaching staff, designations, and department roles.
+              </p>
+            </div>
+
+            {/* Top action buttons */}
+            <div className="flex items-center gap-2">
+              {/* Multi-Format Export Dropdown */}
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => setShowExportDropdown((prev) => !prev)}
+                  disabled={exporting}
+                  className="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground shadow-xs transition-colors"
+                >
+                  {exporting ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-1.5 h-4 w-4" />
+                  )}
+                  Export
+                  <ChevronDown className="ml-1 h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+
+                {showExportDropdown && (
+                  <div className="absolute right-0 mt-1.5 w-48 rounded-xl border border-border bg-card shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95">
+                    <button
+                      onClick={() => handleExport('pdf')}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 flex items-center gap-2.5 transition-colors"
+                    >
+                      <FileText className="h-4 w-4 text-rose-500" />
+                      PDF Document (.pdf)
+                    </button>
+                    <button
+                      onClick={() => handleExport('xls')}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 flex items-center gap-2.5 transition-colors"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                      Excel 97-2004 (.xls)
+                    </button>
+                    <button
+                      onClick={() => handleExport('xlsx')}
+                      className="w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 flex items-center gap-2.5 transition-colors"
+                    >
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                      Excel Workbook (.xlsx)
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Add Faculty Manually Button */}
+              <button
+                onClick={() => {
+                  setShowAddModal(true)
+                  setAddError('')
+                }}
+                className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-colors"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Faculty
+              </button>
             </div>
           </div>
 
+          {/* Toast Notification Banner */}
+          {facultyToast && (
+            <div
+              className={`p-3 text-xs rounded-lg flex items-center justify-between gap-2 border animate-in fade-in ${
+                facultyToast.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                  : 'bg-destructive/10 text-destructive border-destructive/20'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {facultyToast.type === 'success' ? (
+                  <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <AlertCircle className="size-4 shrink-0 text-destructive" />
+                )}
+                <span className="font-medium">{facultyToast.text}</span>
+              </div>
+              <button
+                onClick={() => setFacultyToast(null)}
+                className="text-muted-foreground hover:text-foreground p-0.5 rounded-md transition-colors"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Table Container */}
           <div className="rounded-xl border border-border bg-card shadow-sm">
-            <div className="p-4 border-b border-border">
-              <div className="relative w-full max-w-sm">
+            {/* Toolbar: Search + Filter */}
+            <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              {/* Search Bar */}
+              <div className="relative w-full sm:w-80">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search faculty..."
+                  placeholder="Search by name, employee ID, dept, designation..."
                   value={query}
-                  onChange={e => setQuery(e.target.value)}
+                  onChange={(e) => setQuery(e.target.value)}
                   className="h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-4 text-sm outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
+
+              {/* Department & DEAN Filter Dropdown */}
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <label className="text-xs font-medium text-muted-foreground">Filter:</label>
+                <select
+                  value={deptFilter}
+                  disabled={isHod}
+                  onChange={(e) => setDeptFilter(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isHod && hodDepartment ? (
+                    <>
+                      <option value={hodDepartment}>{hodDepartment} Department (Locked)</option>
+                      <option value="DEAN">DEAN (in {hodDepartment})</option>
+                    </>
+                  ) : (
+                    FILTER_OPTIONS.map((opt) => (
+                      <option
+                        key={opt}
+                        value={opt === 'All Departments' ? 'ALL' : opt}
+                      >
+                        {opt === 'DEAN' ? '★ DEAN' : opt}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
             </div>
 
+            {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-semibold">
@@ -2171,7 +2620,7 @@ export function FacultyPage() {
                     <th className="px-6 py-3 border-b border-border">Employee ID</th>
                     <th className="px-6 py-3 border-b border-border">Department</th>
                     <th className="px-6 py-3 border-b border-border">Designation</th>
-                    <th className="px-6 py-3 border-b border-border">Status</th>
+                    <th className="px-6 py-3 border-b border-border text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -2179,27 +2628,83 @@ export function FacultyPage() {
                     <tr>
                       <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
-                        Loading faculty members...
+                        Loading faculty records...
                       </td>
                     </tr>
                   ) : filtered.map((f, i) => (
-                    <tr key={f.id || i} className="hover:bg-muted/50 transition-colors">
+                    <tr key={f.id || i} className="hover:bg-muted/40 transition-colors">
+                      {/* 1. Faculty Name */}
                       <td className="px-6 py-4 font-medium text-foreground">
                         <div>{f.name}</div>
                         {f.email && <div className="text-xs text-muted-foreground">{f.email}</div>}
                       </td>
-                      <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{f.employeeId}</td>
-                      <td className="px-6 py-4">{f.department}</td>
-                      <td className="px-6 py-4">{f.designation || 'Faculty'}</td>
+
+                      {/* 2. Employee ID */}
+                      <td className="px-6 py-4 text-foreground font-mono text-xs">
+                        <span className="px-2 py-0.5 rounded bg-muted border border-border">
+                          {f.employeeId}
+                        </span>
+                      </td>
+
+                      {/* 3. Department */}
                       <td className="px-6 py-4">
-                        <StatusBadge status={f.status} />
+                        <div className="font-medium text-foreground">{f.departmentCode || f.department}</div>
+                        {f.departmentCode && f.departmentCode !== f.department && (
+                          <div className="text-xs text-muted-foreground truncate max-w-xs">{f.department}</div>
+                        )}
+                      </td>
+
+                      {/* 4. Designation */}
+                      <td className="px-6 py-4">
+                        {f.designation && f.designation.toLowerCase().includes('dean') ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
+                            ★ {f.designation}
+                          </span>
+                        ) : (
+                          <span className="text-foreground">{f.designation || '—'}</span>
+                        )}
+                      </td>
+
+                      {/* 5. Actions (3-Dot Menu) */}
+                      <td className="px-6 py-4 text-right">
+                        <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() =>
+                              setActiveDropdownId(activeDropdownId === f.id ? null : f.id)
+                            }
+                            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            title="Actions"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+
+                          {activeDropdownId === f.id && (
+                            <div className="absolute right-0 mt-1 w-40 rounded-xl border border-border bg-card shadow-xl z-50 py-1 animate-in fade-in zoom-in-95 text-left">
+                              <button
+                                onClick={() => openUpdateModal(f)}
+                                className="w-full px-3 py-2 text-xs font-medium text-foreground hover:bg-muted flex items-center gap-2 transition-colors"
+                              >
+                                <Edit2 className="h-3.5 w-3.5 text-blue-500" />
+                                Update Faculty
+                              </button>
+                              <button
+                                onClick={() => openDeleteModal(f)}
+                                className="w-full px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 flex items-center gap-2 transition-colors"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete Faculty
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
+
                   {!loading && filtered.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
-                        No faculty members found.
+                        No faculty members found matching your search and filter criteria.
                       </td>
                     </tr>
                   )}
@@ -2208,7 +2713,370 @@ export function FacultyPage() {
             </div>
           </div>
         </div>
+
+        {/* Modal: Add Faculty Manually */}
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <div className="bg-card border border-border w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between p-6 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Add Faculty Manually</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Register a new faculty member into the directory.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddFaculty} className="p-6 space-y-4">
+                {addError && (
+                  <div className="p-3 text-xs bg-destructive/10 text-destructive border border-destructive/20 rounded-lg flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{addError}</span>
+                  </div>
+                )}
+
+                {/* Faculty Name */}
+                <div className="space-y-1.5">
+                  <Label required>Faculty Name</Label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Dr. Ramesh Kumar"
+                    value={addForm.name}
+                    onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    required
+                  />
+                </div>
+
+                {/* Employee ID */}
+                <div className="space-y-1.5">
+                  <Label required>Employee ID</Label>
+                  <input
+                    type="text"
+                    placeholder="e.g. FAC002"
+                    value={addForm.employeeId}
+                    onChange={(e) => setAddForm({ ...addForm, employeeId: e.target.value })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    required
+                  />
+                </div>
+
+                {/* Department */}
+                <div className="space-y-1.5">
+                  <Label required>Department</Label>
+                  <select
+                    disabled={isHod}
+                    value={isHod && hodDepartment ? hodDepartment : addForm.department}
+                    onChange={(e) => setAddForm({ ...addForm, department: e.target.value })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
+                  >
+                    {isHod && hodDepartment ? (
+                      <option value={hodDepartment}>{hodDepartment} Department (Auto-enforced)</option>
+                    ) : (
+                      DEPT_OPTIONS.map((d) => (
+                        <option key={d.code} value={d.code}>
+                          {d.code} - {d.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                {/* Designation */}
+                <div className="space-y-1.5">
+                  <Label required>Designation</Label>
+                  <input
+                    list="designation-suggestions"
+                    placeholder="e.g. Assistant Professor, Dean Academic"
+                    value={addForm.designation}
+                    onChange={(e) => setAddForm({ ...addForm, designation: e.target.value })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    required
+                  />
+                  <datalist id="designation-suggestions">
+                    {DESIGNATION_OPTIONS.map((d) => (
+                      <option key={d} value={d} />
+                    ))}
+                  </datalist>
+                </div>
+
+                {/* Email (Optional) */}
+                <div className="space-y-1.5">
+                  <Label>Email Address (Optional)</Label>
+                  <Inp
+                    type="email"
+                    placeholder="e.g. ramesh@klsvdit.edu.in"
+                    value={addForm.email}
+                    onChange={(e: any) => setAddForm({ ...addForm, email: e.target.value })}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    If omitted, defaults to employeeid@klsvdit.edu.in
+                  </p>
+                </div>
+
+                {/* Buttons */}
+                <div className="pt-4 flex items-center justify-end gap-2 border-t border-border">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={addLoading}
+                    className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {addLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    Add Faculty Member
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Update Faculty */}
+        {showUpdateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <div className="bg-card border border-border w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between p-6 border-b border-border">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Update Faculty</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Modify profile details for this faculty member.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowUpdateModal(false)}
+                  className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateFaculty} className="p-6 space-y-4">
+                {updateError && (
+                  <div className="p-3 text-xs bg-destructive/10 text-destructive border border-destructive/20 rounded-lg flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{updateError}</span>
+                  </div>
+                )}
+
+                {/* Name */}
+                <div className="space-y-1.5">
+                  <Label required>Faculty Name</Label>
+                  <input
+                    type="text"
+                    value={updateForm.name}
+                    onChange={(e) => setUpdateForm({ ...updateForm, name: e.target.value })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    required
+                  />
+                </div>
+
+                {/* Employee ID */}
+                <div className="space-y-1.5">
+                  <Label required>Employee ID</Label>
+                  <input
+                    type="text"
+                    value={updateForm.employeeId}
+                    onChange={(e) => setUpdateForm({ ...updateForm, employeeId: e.target.value })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    required
+                  />
+                </div>
+
+                {/* Department (Editable by Super Admin, locked for HOD) */}
+                <div className="space-y-1.5">
+                  <Label required>Department</Label>
+                  <select
+                    disabled={isHod}
+                    value={updateForm.department}
+                    onChange={(e) => setUpdateForm({ ...updateForm, department: e.target.value })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
+                  >
+                    {isHod && hodDepartment ? (
+                      <option value={hodDepartment}>{hodDepartment} Department (Locked)</option>
+                    ) : (
+                      DEPT_OPTIONS.map((d) => (
+                        <option key={d.code} value={d.code}>
+                          {d.code} - {d.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                {/* Designation */}
+                <div className="space-y-1.5">
+                  <Label required>Designation</Label>
+                  <input
+                    list="update-designation-suggestions"
+                    placeholder="e.g. Professor, Dean Academic"
+                    value={updateForm.designation}
+                    onChange={(e) => setUpdateForm({ ...updateForm, designation: e.target.value })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    required
+                  />
+                  <datalist id="update-designation-suggestions">
+                    {DESIGNATION_OPTIONS.map((d) => (
+                      <option key={d} value={d} />
+                    ))}
+                  </datalist>
+                </div>
+
+                {/* Buttons */}
+                <div className="pt-4 flex items-center justify-end gap-2 border-t border-border">
+                  <button
+                    type="button"
+                    onClick={() => setShowUpdateModal(false)}
+                    className="h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updateLoading}
+                    className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {updateLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Delete Faculty Confirmation */}
+        {showDeleteModal && facultyToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+              <div className="p-6 space-y-4">
+                <div className="size-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">
+                  <Trash2 className="size-6" />
+                </div>
+
+                <div className="text-center space-y-1">
+                  <h3 className="text-lg font-semibold text-foreground">Delete Faculty Member</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Are you sure you want to delete <span className="font-semibold text-foreground">{facultyToDelete.name}</span> ({facultyToDelete.employeeId})?
+                  </p>
+                </div>
+
+                {deleteError && (
+                  <div className="p-3 text-xs bg-destructive/10 text-destructive border border-destructive/20 rounded-lg flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{deleteError}</span>
+                  </div>
+                )}
+
+                <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteModal(false)}
+                    className="h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleteLoading}
+                    onClick={handleConfirmDelete}
+                    className="h-9 px-4 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {deleteLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    Delete Faculty
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Modal: Created Faculty Temporary Credential Delivery */}
+        {createdCredential && createdCredential.temporaryPassword && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+              <div className="p-6 space-y-4">
+                <div className="size-12 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                  <Key className="size-6" />
+                </div>
+
+                <div className="text-center space-y-1">
+                  <h3 className="text-lg font-semibold text-foreground">Faculty Account Created</h3>
+                  <p className="text-xs text-muted-foreground">
+                    A cryptographically secure temporary credential has been generated for <span className="font-semibold text-foreground">{createdCredential.name}</span>.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-lg bg-muted/60 border border-border space-y-3 text-xs">
+                  <div className="flex justify-between items-center text-muted-foreground">
+                    <span>Employee ID:</span>
+                    <span className="font-mono font-medium text-foreground">{createdCredential.employeeId}</span>
+                  </div>
+                  {createdCredential.email && (
+                    <div className="flex justify-between items-center text-muted-foreground">
+                      <span>Email:</span>
+                      <span className="font-medium text-foreground">{createdCredential.email}</span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-border">
+                    <div className="text-muted-foreground mb-1.5 font-medium">Temporary Password:</div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 p-2 rounded bg-background border border-border font-mono text-xs font-semibold text-primary select-all">
+                        {createdCredential.temporaryPassword}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (createdCredential.temporaryPassword) {
+                            navigator.clipboard.writeText(createdCredential.temporaryPassword)
+                            setCopiedPassword(true)
+                            setTimeout(() => setCopiedPassword(false), 2500)
+                          }
+                        }}
+                        className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors flex items-center gap-1 shrink-0"
+                      >
+                        {copiedPassword ? (
+                          <>
+                            <Check className="h-3.5 w-3.5" />
+                            Copied
+                          </>
+                        ) : (
+                          'Copy'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground text-center">
+                  Deliver this temporary credential to the faculty member. They can log in using their Employee ID or Email and reset their password.
+                </p>
+
+                <div className="pt-2 flex items-center justify-end border-t border-border">
+                  <button
+                    type="button"
+                    onClick={() => setCreatedCredential(null)}
+                    className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </AdminContent>
     </AdminShell>
   )
 }
+

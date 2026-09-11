@@ -12,6 +12,12 @@ import {
   deleteAdminStudent,
   getAdminStudentDevice,
   resetAdminStudentDevice,
+  exportAdminStudents,
+  getAdminFaculty,
+  createAdminFaculty,
+  updateAdminFaculty,
+  deleteAdminFaculty,
+  exportAdminFaculty,
 } from "../controllers/adminController.js";
 
 import { authenticate } from "../middleware/authMiddleware.js";
@@ -106,6 +112,50 @@ router.delete(
   authenticate,
   authorize("ADMIN", "FACULTY", "HOD"),
   deleteAdminStudent
+);
+
+// Student Export (PDF, XLS, XLSX)
+router.get(
+  "/students/export",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  exportAdminStudents
+);
+
+// Faculty Management Routes
+router.get(
+  "/faculty",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  getAdminFaculty
+);
+
+router.post(
+  "/faculty",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  createAdminFaculty
+);
+
+router.get(
+  "/faculty/export",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  exportAdminFaculty
+);
+
+router.patch(
+  "/faculty/:id",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  updateAdminFaculty
+);
+
+router.delete(
+  "/faculty/:id",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  deleteAdminFaculty
 );
 
 export default router;
