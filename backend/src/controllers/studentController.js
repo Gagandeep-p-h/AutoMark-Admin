@@ -1,5 +1,6 @@
 import { db } from "../prisma/db.js";
 import bcrypt from "bcryptjs";
+import { getHodDepartment } from "../utils/hodDepartment.js";
 
 const getStudentIdFromUser = async (userId) => {
   const students = await db.orm.public.Student.all();
@@ -11,18 +12,46 @@ const getStudentIdFromUser = async (userId) => {
 
 export const getStudents = async (req, res) => {
   try {
+    const callerEmail = req.user?.email;
+    const hodDepartment = getHodDepartment(callerEmail);
+
+    let targetDepartment = null;
+    if (hodDepartment) {
+      targetDepartment = hodDepartment;
+    } else {
+      targetDepartment = req.query.department || null;
+    }
+
     const students = await db.orm.public.Student.all();
+    const departments = await db.orm.public.Department.all();
+
+    let filtered = students;
+
+    if (targetDepartment) {
+      const target = targetDepartment.trim().toUpperCase();
+      const matchingDept = departments.find(
+        (d) => d.code?.toUpperCase() === target || d.name?.toUpperCase().includes(target)
+      );
+
+      filtered = filtered.filter((s) => {
+        if (matchingDept && s.departmentId === matchingDept.id) return true;
+        return false;
+      });
+    }
 
     res.status(200).json({
       success: true,
-      data: students,
+      data: filtered,
+      total: filtered.length,
+      isHod: Boolean(hodDepartment),
+      department: targetDepartment,
     });
   } catch (error) {
     console.error("Error fetching students:", error);
 
     res.status(500).json({
       success: false,
-      message: "Failed to fetch students",
+      message: "Failed to load students",
     });
   }
 };

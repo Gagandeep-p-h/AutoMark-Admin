@@ -16,12 +16,19 @@ import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 app.get("/", (req, res) => {
   res.json({
     message: "SmartAttend Backend is running",
+    version: "1.0.0",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -29,6 +36,9 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "OK",
     message: "SmartAttend API is healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    databaseConfigured: Boolean(process.env.DATABASE_URL),
   });
 });
 

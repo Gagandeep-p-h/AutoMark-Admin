@@ -1,0 +1,19 @@
+{
+  "name": "smartattend-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SmartAttend Attendance System - Fullstack repository containing Express backend API and Next.js admin frontend",
+  "scripts": {
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "install:all": "npm install && npm install --prefix backend --legacy-peer-deps && npm install --prefix frontend",
+    "install:backend": "npm install --prefix backend --legacy-peer-deps",
+    "install:frontend": "npm install --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"npm run start --prefix backend\" \"npm run start --prefix frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

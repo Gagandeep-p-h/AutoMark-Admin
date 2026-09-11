@@ -13,7 +13,7 @@ const router = express.Router();
 
 router.get("/dashboard", authenticate, authorize("ADMIN"), getAdminDashboard);
 
-router.get("/students", authenticate, authorize("ADMIN"), getAdminStudents);
+router.get("/students", authenticate, authorize("ADMIN", "FACULTY", "HOD"), getAdminStudents);
 
 router.post("/students", authenticate, authorize("ADMIN"), createAdminStudent);
 

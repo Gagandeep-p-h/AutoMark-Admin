@@ -4,10 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "dev": "nodemon server.js",
-  "start": "node server.js",
-  "contract:emit": "prisma contract emit"
-},
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "contract:emit": "prisma contract emit"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

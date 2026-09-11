@@ -115,6 +115,20 @@ export function AdminShell({ children }: { children: ReactNode }) {
     router.push('/admin/login')
   }
 
+  const [backendStatus, setBackendStatus] = React.useState<'checking' | 'live' | 'offline'>('checking')
+
+  React.useEffect(() => {
+    let mounted = true
+    import('@/lib/api').then(({ checkBackendHealth }) => {
+      checkBackendHealth().then(res => {
+        if (mounted) {
+          setBackendStatus(res.status === 'OK' ? 'live' : 'offline')
+        }
+      })
+    })
+    return () => { mounted = false }
+  }, [])
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
@@ -193,7 +207,24 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </span>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {backendStatus === 'live' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Backend API Live
+              </span>
+            ) : backendStatus === 'offline' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
+                <span className="size-1.5 rounded-full bg-amber-500" />
+                Demo Mode (API Offline)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+                <span className="size-1.5 rounded-full bg-muted-foreground animate-ping" />
+                Connecting...
+              </span>
+            )}
+
             <button className="relative p-2 text-muted-foreground hover:bg-accent rounded-full transition-colors">
               <Bell className="size-4" />
               <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-destructive border-2 border-card" />
