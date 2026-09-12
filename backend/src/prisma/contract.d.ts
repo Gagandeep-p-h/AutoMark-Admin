@@ -33,9 +33,9 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'afbc83bca0d878e7fb051d1ef3f5d23d84dae3a9b2d3acec31b8c82a2b22911f'>;
+  StorageHashBase<'4c1b6b8da424e4dcc88a58b58a0d87afc03c69035f9aa3d04c8818bb295bb219'>;
 export type ExecutionHash =
-  ExecutionHashBase<'b016bb1982981c5e0232d7ebb78cd7ccd2f0855e0b56c9c9b8ea1dd124a0ecc2'>;
+  ExecutionHashBase<'8835ff5c1e3848be47e5a935b05036af6dc8d0af12df9b77e5c7c13cf21e0592'>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
 
@@ -303,6 +303,16 @@ export type FieldOutputTypes = {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
     };
+    readonly LabBatch: {
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly name: CodecTypes['pg/text@1']['output'];
+      readonly departmentId: CodecTypes['pg/int4@1']['output'];
+      readonly semester: CodecTypes['pg/int4@1']['output'];
+      readonly section: CodecTypes['pg/text@1']['output'];
+      readonly academicYear: CodecTypes['pg/text@1']['output'];
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
+    };
     readonly Notification: {
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly userId: CodecTypes['pg/int4@1']['output'];
@@ -323,6 +333,11 @@ export type FieldOutputTypes = {
       readonly academicYear: CodecTypes['pg/text@1']['output'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
+    };
+    readonly StudentBatch: {
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly studentId: CodecTypes['pg/int4@1']['output'];
+      readonly batchId: CodecTypes['pg/int4@1']['output'];
     };
     readonly StudentDevice: {
       readonly id: CodecTypes['pg/int4@1']['output'];
@@ -348,6 +363,17 @@ export type FieldOutputTypes = {
       readonly startTime: CodecTypes['pg/text@1']['output'];
       readonly endTime: CodecTypes['pg/text@1']['output'];
       readonly room: CodecTypes['pg/text@1']['output'] | null;
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
+    };
+    readonly TimetableSlot: {
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly classId: CodecTypes['pg/int4@1']['output'];
+      readonly dayOfWeek: 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
+      readonly startTime: CodecTypes['pg/text@1']['output'];
+      readonly endTime: CodecTypes['pg/text@1']['output'];
+      readonly isLab: CodecTypes['pg/bool@1']['output'];
+      readonly batchId: CodecTypes['pg/int4@1']['output'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
     };
@@ -427,6 +453,16 @@ export type FieldInputTypes = {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
     };
+    readonly LabBatch: {
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly name: CodecTypes['pg/text@1']['input'];
+      readonly departmentId: CodecTypes['pg/int4@1']['input'];
+      readonly semester: CodecTypes['pg/int4@1']['input'];
+      readonly section: CodecTypes['pg/text@1']['input'];
+      readonly academicYear: CodecTypes['pg/text@1']['input'];
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
+    };
     readonly Notification: {
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly userId: CodecTypes['pg/int4@1']['input'];
@@ -447,6 +483,11 @@ export type FieldInputTypes = {
       readonly academicYear: CodecTypes['pg/text@1']['input'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
+    };
+    readonly StudentBatch: {
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly studentId: CodecTypes['pg/int4@1']['input'];
+      readonly batchId: CodecTypes['pg/int4@1']['input'];
     };
     readonly StudentDevice: {
       readonly id: CodecTypes['pg/int4@1']['input'];
@@ -472,6 +513,17 @@ export type FieldInputTypes = {
       readonly startTime: CodecTypes['pg/text@1']['input'];
       readonly endTime: CodecTypes['pg/text@1']['input'];
       readonly room: CodecTypes['pg/text@1']['input'] | null;
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
+    };
+    readonly TimetableSlot: {
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly classId: CodecTypes['pg/int4@1']['input'];
+      readonly dayOfWeek: 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
+      readonly startTime: CodecTypes['pg/text@1']['input'];
+      readonly endTime: CodecTypes['pg/text@1']['input'];
+      readonly isLab: CodecTypes['pg/bool@1']['input'];
+      readonly batchId: CodecTypes['pg/int4@1']['input'] | null;
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
     };
@@ -551,6 +603,16 @@ export type StorageColumnTypes = {
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly userId: CodecTypes['pg/int4@1']['output'];
     };
+    readonly labBatch: {
+      readonly academicYear: CodecTypes['pg/text@1']['output'];
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
+      readonly departmentId: CodecTypes['pg/int4@1']['output'];
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly name: CodecTypes['pg/text@1']['output'];
+      readonly section: CodecTypes['pg/text@1']['output'];
+      readonly semester: CodecTypes['pg/int4@1']['output'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
+    };
     readonly notification: {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly id: CodecTypes['pg/int4@1']['output'];
@@ -571,6 +633,11 @@ export type StorageColumnTypes = {
       readonly semester: CodecTypes['pg/int4@1']['output'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly userId: CodecTypes['pg/int4@1']['output'];
+    };
+    readonly studentBatch: {
+      readonly batchId: CodecTypes['pg/int4@1']['output'];
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly studentId: CodecTypes['pg/int4@1']['output'];
     };
     readonly studentDevice: {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -596,6 +663,17 @@ export type StorageColumnTypes = {
       readonly endTime: CodecTypes['pg/text@1']['output'];
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly room: CodecTypes['pg/text@1']['output'] | null;
+      readonly startTime: CodecTypes['pg/text@1']['output'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
+    };
+    readonly timetableSlot: {
+      readonly batchId: CodecTypes['pg/int4@1']['output'] | null;
+      readonly classId: CodecTypes['pg/int4@1']['output'];
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
+      readonly dayOfWeek: 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
+      readonly endTime: CodecTypes['pg/text@1']['output'];
+      readonly id: CodecTypes['pg/int4@1']['output'];
+      readonly isLab: CodecTypes['pg/bool@1']['output'];
       readonly startTime: CodecTypes['pg/text@1']['output'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
     };
@@ -675,6 +753,16 @@ export type StorageColumnInputTypes = {
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly userId: CodecTypes['pg/int4@1']['input'];
     };
+    readonly labBatch: {
+      readonly academicYear: CodecTypes['pg/text@1']['input'];
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
+      readonly departmentId: CodecTypes['pg/int4@1']['input'];
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly name: CodecTypes['pg/text@1']['input'];
+      readonly section: CodecTypes['pg/text@1']['input'];
+      readonly semester: CodecTypes['pg/int4@1']['input'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
+    };
     readonly notification: {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly id: CodecTypes['pg/int4@1']['input'];
@@ -695,6 +783,11 @@ export type StorageColumnInputTypes = {
       readonly semester: CodecTypes['pg/int4@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly userId: CodecTypes['pg/int4@1']['input'];
+    };
+    readonly studentBatch: {
+      readonly batchId: CodecTypes['pg/int4@1']['input'];
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly studentId: CodecTypes['pg/int4@1']['input'];
     };
     readonly studentDevice: {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
@@ -720,6 +813,17 @@ export type StorageColumnInputTypes = {
       readonly endTime: CodecTypes['pg/text@1']['input'];
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly room: CodecTypes['pg/text@1']['input'] | null;
+      readonly startTime: CodecTypes['pg/text@1']['input'];
+      readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
+    };
+    readonly timetableSlot: {
+      readonly batchId: CodecTypes['pg/int4@1']['input'] | null;
+      readonly classId: CodecTypes['pg/int4@1']['input'];
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
+      readonly dayOfWeek: 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
+      readonly endTime: CodecTypes['pg/text@1']['input'];
+      readonly id: CodecTypes['pg/int4@1']['input'];
+      readonly isLab: CodecTypes['pg/bool@1']['input'];
       readonly startTime: CodecTypes['pg/text@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
     };
@@ -1293,6 +1397,79 @@ type ContractBase = Omit<
                 },
               ];
             };
+            readonly labBatch: {
+              columns: {
+                readonly id: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'function';
+                    readonly expression: 'autoincrement()';
+                  };
+                };
+                readonly name: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly departmentId: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                };
+                readonly semester: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                };
+                readonly section: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly academicYear: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly createdAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                };
+                readonly updatedAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                  readonly nullable: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'labBatch_departmentId_idx_8e261ed8';
+                  readonly prefix: 'labBatch_departmentId_idx';
+                  readonly columns: readonly ['departmentId'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'labBatch';
+                    readonly columns: readonly ['departmentId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'department';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+              ];
+            };
             readonly notification: {
               columns: {
                 readonly id: {
@@ -1458,6 +1635,71 @@ type ContractBase = Omit<
                   readonly target: {
                     readonly namespaceId: 'public' & NamespaceId;
                     readonly tableName: 'department';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+              ];
+            };
+            readonly studentBatch: {
+              columns: {
+                readonly id: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'function';
+                    readonly expression: 'autoincrement()';
+                  };
+                };
+                readonly studentId: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                };
+                readonly batchId: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'studentBatch_studentId_idx_bf255322';
+                  readonly prefix: 'studentBatch_studentId_idx';
+                  readonly columns: readonly ['studentId'];
+                  readonly unique: false;
+                },
+                {
+                  readonly name: 'studentBatch_batchId_idx_84d4b0b9';
+                  readonly prefix: 'studentBatch_batchId_idx';
+                  readonly columns: readonly ['batchId'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'studentBatch';
+                    readonly columns: readonly ['studentId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'student';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'studentBatch';
+                    readonly columns: readonly ['batchId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'labBatch';
                     readonly columns: readonly ['id'];
                   };
                 },
@@ -1671,6 +1913,106 @@ type ContractBase = Omit<
                 },
               ];
             };
+            readonly timetableSlot: {
+              columns: {
+                readonly id: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'function';
+                    readonly expression: 'autoincrement()';
+                  };
+                };
+                readonly classId: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                };
+                readonly dayOfWeek: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly startTime: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly endTime: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly isLab: {
+                  readonly nativeType: 'bool';
+                  readonly codecId: 'pg/bool@1';
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/bool@1', false>;
+                  };
+                };
+                readonly batchId: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: true;
+                };
+                readonly createdAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                };
+                readonly updatedAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                  readonly nullable: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'timetableSlot_classId_idx_0089e5e7';
+                  readonly prefix: 'timetableSlot_classId_idx';
+                  readonly columns: readonly ['classId'];
+                  readonly unique: false;
+                },
+                {
+                  readonly name: 'timetableSlot_batchId_idx_84d4b0b9';
+                  readonly prefix: 'timetableSlot_batchId_idx';
+                  readonly columns: readonly ['batchId'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'timetableSlot';
+                    readonly columns: readonly ['classId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'class';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'timetableSlot';
+                    readonly columns: readonly ['batchId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'labBatch';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+              ];
+            };
             readonly user: {
               columns: {
                 readonly id: {
@@ -1738,6 +2080,17 @@ type ContractBase = Omit<
               readonly kind: 'valueSet';
               readonly values: readonly ['PRESENT', 'ABSENT', 'LATE'];
             };
+            readonly DayOfWeek: {
+              readonly kind: 'valueSet';
+              readonly values: readonly [
+                'MONDAY',
+                'TUESDAY',
+                'WEDNESDAY',
+                'THURSDAY',
+                'FRIDAY',
+                'SATURDAY',
+              ];
+            };
             readonly UserRole: {
               readonly kind: 'valueSet';
               readonly values: readonly ['ADMIN', 'FACULTY', 'STUDENT'];
@@ -1786,6 +2139,15 @@ type ContractBase = Omit<
     readonly notification: {
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'Notification';
+    };
+    readonly timetableSlot: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'TimetableSlot';
+    };
+    readonly labBatch: { readonly namespace: 'public' & NamespaceId; readonly model: 'LabBatch' };
+    readonly studentBatch: {
+      readonly namespace: 'public' & NamespaceId;
+      readonly model: 'StudentBatch';
     };
   };
   readonly domain: {
@@ -2148,6 +2510,17 @@ type ContractBase = Omit<
                   readonly targetFields: readonly ['classId'];
                 };
               };
+              readonly timetableSlots: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'TimetableSlot';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['classId'];
+                };
+              };
             };
             readonly storage: {
               readonly table: 'class';
@@ -2210,6 +2583,17 @@ type ContractBase = Omit<
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
                   readonly model: 'Faculty';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['departmentId'];
+                };
+              };
+              readonly labBatches: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'LabBatch';
                 };
                 readonly cardinality: '1:N';
                 readonly on: {
@@ -2392,6 +2776,97 @@ type ContractBase = Omit<
               };
             };
           };
+          readonly LabBatch: {
+            readonly fields: {
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly name: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly departmentId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly semester: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly section: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly academicYear: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly createdAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                };
+              };
+              readonly updatedAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                };
+              };
+            };
+            readonly relations: {
+              readonly department: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'Department';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly ['departmentId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+              readonly students: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'StudentBatch';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['batchId'];
+                };
+              };
+              readonly timetableSlots: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'TimetableSlot';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['batchId'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'labBatch';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly id: { readonly column: 'id' };
+                readonly name: { readonly column: 'name' };
+                readonly departmentId: { readonly column: 'departmentId' };
+                readonly semester: { readonly column: 'semester' };
+                readonly section: { readonly column: 'section' };
+                readonly academicYear: { readonly column: 'academicYear' };
+                readonly createdAt: { readonly column: 'createdAt' };
+                readonly updatedAt: { readonly column: 'updatedAt' };
+              };
+            };
+          };
           readonly Notification: {
             readonly fields: {
               readonly id: {
@@ -2547,6 +3022,17 @@ type ContractBase = Omit<
                   readonly targetFields: readonly ['studentId'];
                 };
               };
+              readonly studentBatches: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'StudentBatch';
+                };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['studentId'];
+                };
+              };
               readonly user: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
@@ -2570,6 +3056,55 @@ type ContractBase = Omit<
                 readonly academicYear: { readonly column: 'academicYear' };
                 readonly createdAt: { readonly column: 'createdAt' };
                 readonly updatedAt: { readonly column: 'updatedAt' };
+              };
+            };
+          };
+          readonly StudentBatch: {
+            readonly fields: {
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly studentId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly batchId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+            };
+            readonly relations: {
+              readonly batch: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'LabBatch';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly ['batchId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+              readonly student: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'Student';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly ['studentId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'studentBatch';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly id: { readonly column: 'id' };
+                readonly studentId: { readonly column: 'studentId' };
+                readonly batchId: { readonly column: 'batchId' };
               };
             };
           };
@@ -2776,6 +3311,91 @@ type ContractBase = Omit<
               };
             };
           };
+          readonly TimetableSlot: {
+            readonly fields: {
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly classId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly dayOfWeek: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly startTime: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly endTime: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly isLab: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/bool@1' };
+              };
+              readonly batchId: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly createdAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                };
+              };
+              readonly updatedAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                };
+              };
+            };
+            readonly relations: {
+              readonly batch: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'LabBatch';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly ['batchId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+              readonly class: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'Class';
+                };
+                readonly cardinality: 'N:1';
+                readonly on: {
+                  readonly localFields: readonly ['classId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'timetableSlot';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly id: { readonly column: 'id' };
+                readonly classId: { readonly column: 'classId' };
+                readonly dayOfWeek: { readonly column: 'dayOfWeek' };
+                readonly startTime: { readonly column: 'startTime' };
+                readonly endTime: { readonly column: 'endTime' };
+                readonly isLab: { readonly column: 'isLab' };
+                readonly batchId: { readonly column: 'batchId' };
+                readonly createdAt: { readonly column: 'createdAt' };
+                readonly updatedAt: { readonly column: 'updatedAt' };
+              };
+            };
+          };
           readonly User: {
             readonly fields: {
               readonly id: {
@@ -2892,6 +3512,17 @@ type ContractBase = Omit<
               { readonly name: 'MANUAL'; readonly value: 'MANUAL' },
             ];
           };
+          readonly DayOfWeek: {
+            readonly codecId: 'pg/text@1';
+            readonly members: readonly [
+              { readonly name: 'MONDAY'; readonly value: 'MONDAY' },
+              { readonly name: 'TUESDAY'; readonly value: 'TUESDAY' },
+              { readonly name: 'WEDNESDAY'; readonly value: 'WEDNESDAY' },
+              { readonly name: 'THURSDAY'; readonly value: 'THURSDAY' },
+              { readonly name: 'FRIDAY'; readonly value: 'FRIDAY' },
+              { readonly name: 'SATURDAY'; readonly value: 'SATURDAY' },
+            ];
+          };
         };
       };
     };
@@ -2967,6 +3598,15 @@ type ContractBase = Omit<
         {
           readonly ref: {
             readonly namespace: 'public';
+            readonly table: 'labBatch';
+            readonly column: 'updatedAt';
+          };
+          readonly onCreate: { readonly kind: 'generator'; readonly id: 'timestampNow' };
+          readonly onUpdate: { readonly kind: 'generator'; readonly id: 'timestampNow' };
+        },
+        {
+          readonly ref: {
+            readonly namespace: 'public';
             readonly table: 'notification';
             readonly column: 'updatedAt';
           };
@@ -3004,6 +3644,15 @@ type ContractBase = Omit<
           readonly ref: {
             readonly namespace: 'public';
             readonly table: 'timetable';
+            readonly column: 'updatedAt';
+          };
+          readonly onCreate: { readonly kind: 'generator'; readonly id: 'timestampNow' };
+          readonly onUpdate: { readonly kind: 'generator'; readonly id: 'timestampNow' };
+        },
+        {
+          readonly ref: {
+            readonly namespace: 'public';
+            readonly table: 'timetableSlot';
             readonly column: 'updatedAt';
           };
           readonly onCreate: { readonly kind: 'generator'; readonly id: 'timestampNow' };

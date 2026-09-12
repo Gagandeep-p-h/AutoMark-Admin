@@ -517,17 +517,102 @@ export const getStudentTimetable = async (req, res) => {
       }
     }
 
-    data.sort((a, b) => {
-      if (a.dayOfWeek !== b.dayOfWeek) {
-        return a.dayOfWeek - b.dayOfWeek;
-      }
+    // Also fetch new TimetableSlot data for the student's section/batch (additive, non-breaking)
+    let slotData = [];
+    let studentBatch = null;
+    try {
+      // Find student's info
+      const students = await db.orm.public.Student.all();
+      const studentRecord = students.find((s) => s.id === studentId);
 
-      return a.startTime.localeCompare(b.startTime);
+      if (studentRecord) {
+        // Get student's lab batch assignment
+        try {
+          const studentBatches = await db.orm.public.StudentBatch.all();
+          const batchEntry = studentBatches.find((sb) => sb.studentId === studentId);
+
+          if (batchEntry) {
+            const batches = await db.orm.public.LabBatch.all();
+            studentBatch = batches.find((b) => b.id === batchEntry.batchId) || null;
+          }
+        } catch {
+          // StudentBatch table not yet migrated - graceful fallback
+        }
+
+        // Get TimetableSlots for this student's class enrollments
+        try {
+          const timetableSlots = await db.orm.public.TimetableSlot.all();
+          const enrolledClassIds = studentEnrollments.map((e) => e.classId);
+
+          const relevantSlots = timetableSlots.filter((slot) => {
+            if (!enrolledClassIds.includes(slot.classId)) return false;
+            // If it's a lab slot, only show if batch matches student's batch (or no batch assigned)
+            if (slot.isLab && slot.batchId && studentBatch) {
+              return slot.batchId === studentBatch.id;
+            }
+            return true;
+          });
+
+          for (const slot of relevantSlots) {
+            const cls = classes.find((c) => c.id === slot.classId);
+            if (!cls) continue;
+            const subj = subjects.find((s) => s.id === cls.subjectId);
+            const fac = faculty.find((f) => f.id === cls.facultyId);
+            const facUser = users.find((u) => u.id === fac?.userId);
+
+            slotData.push({
+              id: `slot_${slot.id}`,
+              dayOfWeek: slot.dayOfWeek,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+              isLab: slot.isLab,
+              batchName: studentBatch?.name || null,
+              subject: {
+                id: subj?.id ?? null,
+                code: subj?.code ?? null,
+                name: subj?.name ?? null,
+              },
+              faculty: facUser?.name ?? null,
+              classId: slot.classId,
+              room: null,
+            });
+          }
+        } catch {
+          // TimetableSlot table not yet migrated - graceful fallback
+        }
+      }
+    } catch {
+      // Non-critical: batch data unavailable
+    }
+
+    // Merge legacy timetable + new slot data (deduplicate by class+day+time)
+    const merged = [...data];
+    for (const slot of slotData) {
+      const duplicate = merged.some(
+        (d) =>
+          d.classId === slot.classId &&
+          String(d.dayOfWeek) === String(slot.dayOfWeek) &&
+          d.startTime === slot.startTime
+      );
+      if (!duplicate) merged.push(slot);
+    }
+
+    merged.sort((a, b) => {
+      if (a.dayOfWeek !== b.dayOfWeek) {
+        return String(a.dayOfWeek).localeCompare(String(b.dayOfWeek));
+      }
+      return String(a.startTime).localeCompare(String(b.startTime));
     });
 
     res.status(200).json({
       success: true,
-      data,
+      data: merged,
+      // Extra metadata for mobile app (non-breaking additions)
+      meta: {
+        labBatch: studentBatch
+          ? { id: studentBatch.id, name: studentBatch.name }
+          : null,
+      },
     });
   } catch (error) {
     console.error("Student timetable error:", error);
@@ -538,6 +623,7 @@ export const getStudentTimetable = async (req, res) => {
     });
   }
 };
+
 
 export const getStudentAttendance = async (req, res) => {
   try {
