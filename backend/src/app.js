@@ -1,3 +1,8 @@
+import { webcrypto } from "node:crypto";
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto;
+}
+
 import express from "express";
 import cors from "cors";
 import departmentRoutes from "./routes/departmentRoutes.js";
@@ -29,6 +34,16 @@ app.get("/", (req, res) => {
     message: "SmartAttend Backend is running",
     version: "1.0.0",
     timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/health", (req, res) => {
+  res.json({
+    status: "OK",
+    message: "SmartAttend Backend is healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    databaseConfigured: Boolean(process.env.DATABASE_URL),
   });
 });
 
