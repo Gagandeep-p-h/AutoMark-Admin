@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
+import { getSession, getBackendToken } from '@/lib/auth';
 
 const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000';
 
@@ -12,8 +12,11 @@ export async function GET(req: Request) {
     const session = await getSession();
     const url = new URL(req.url);
 
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (session?.backendToken) headers['Authorization'] = `Bearer ${session.backendToken}`;
+    const token = await getBackendToken(session);
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
 
     const backendRes = await fetch(
       `${BACKEND}/api/admin/timetable${url.search}`,

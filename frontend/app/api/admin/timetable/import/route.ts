@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
+import { getSession, getBackendToken } from '@/lib/auth';
 
 const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000';
 
@@ -13,8 +13,10 @@ export async function POST(req: Request) {
     const url = new URL(req.url);
     const formData = await req.formData();
 
-    const headers: Record<string, string> = {};
-    if (session?.backendToken) headers['Authorization'] = `Bearer ${session.backendToken}`;
+    const token = await getBackendToken(session);
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+    };
     // Do NOT set Content-Type — browser/fetch sets correct multipart boundary automatically
 
     const backendRes = await fetch(

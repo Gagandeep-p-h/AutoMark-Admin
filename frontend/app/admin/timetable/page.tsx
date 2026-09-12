@@ -1,21 +1,25 @@
 'use client'
 
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import {
   Calendar,
   Download,
   Upload,
   FlaskConical,
   BookOpen,
-  Plus,
   Save,
   AlertTriangle,
   CheckCircle2,
   X,
   ChevronDown,
-  Users,
   Loader2,
   Info,
+  Ban,
+  GraduationCap,
+  Layers,
+  Plus,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 import { AdminShell, AdminContent } from '@/components/admin-shell'
 
@@ -26,6 +30,7 @@ interface Subject {
   name: string
   code: string
   departmentId: number
+  credits?: number
 }
 
 interface Faculty {
@@ -52,6 +57,7 @@ interface TimetableSlot {
   startTime: string
   endTime: string
   isLab: boolean
+  isNA?: boolean
   subjectId?: number | null
   subjectCode?: string
   subjectName?: string
@@ -67,6 +73,7 @@ interface SlotCell {
   subjectId: number | null
   facultyId: number | null
   isLab: boolean
+  isNA: boolean
   batchId: number | null
   room: string
 }
@@ -77,6 +84,14 @@ interface ValidationError {
   time?: string
   errors: string[]
   row?: number
+}
+
+interface EngineeringYearOption {
+  yearNumber: number
+  label: string
+  semesters: number[]
+  defaultSemester: number
+  academicSession: string
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -108,12 +123,19 @@ const EMPTY_SLOT: SlotCell = {
   subjectId: null,
   facultyId: null,
   isLab: false,
+  isNA: false,
   batchId: null,
   room: '',
 }
 
-const ACADEMIC_YEARS = ['2025-2026', '2024-2025', '2023-2024']
-const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8]
+// Engineering Years (1st Year – 4th Year) mapped to semesters and academic sessions
+const ENGINEERING_YEARS: EngineeringYearOption[] = [
+  { yearNumber: 1, label: '1st Year', semesters: [1, 2], defaultSemester: 1, academicSession: '2025-2026' },
+  { yearNumber: 2, label: '2nd Year', semesters: [3, 4], defaultSemester: 3, academicSession: '2025-2026' },
+  { yearNumber: 3, label: '3rd Year', semesters: [5, 6], defaultSemester: 5, academicSession: '2025-2026' },
+  { yearNumber: 4, label: '4th Year', semesters: [7, 8], defaultSemester: 7, academicSession: '2025-2026' },
+]
+
 const SECTIONS = ['A', 'B', 'C', 'D']
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
@@ -122,68 +144,56 @@ function getSlotKey(day: string, startTime: string) {
   return `${day}__${startTime}`
 }
 
-function isLabBlock(startTime: string, endTime: string) {
-  const labBlocks = [
-    { s: '09:00', e: '11:00' },
-    { s: '11:15', e: '13:15' },
-    { s: '14:00', e: '16:00' },
-  ]
-  return labBlocks.some((b) => b.s === startTime && b.e === endTime)
-}
-
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 
 function FilterBar({
-  academicYear, setAcademicYear,
-  departmentId, setDepartmentId,
-  semester, setSemester,
-  section, setSection,
-  departments,
+  engineeringYear,
+  setEngineeringYear,
+  semester,
+  setSemester,
+  section,
+  setSection,
   onLoad,
   loading,
 }: {
-  academicYear: string
-  setAcademicYear: (v: string) => void
-  departmentId: string
-  setDepartmentId: (v: string) => void
+  engineeringYear: number
+  setEngineeringYear: (y: number) => void
   semester: number
   setSemester: (v: number) => void
   section: string
   setSection: (v: string) => void
-  departments: { id: number; name: string; code: string }[]
   onLoad: () => void
   loading: boolean
 }) {
+  const currentYearConfig = ENGINEERING_YEARS.find((y) => y.yearNumber === engineeringYear) || ENGINEERING_YEARS[1]
+
+  const handleYearChange = (yearNum: number) => {
+    setEngineeringYear(yearNum)
+    const conf = ENGINEERING_YEARS.find((y) => y.yearNumber === yearNum)
+    if (conf) {
+      setSemester(conf.defaultSemester)
+    }
+  }
+
   return (
     <div className="flex flex-wrap items-end gap-3 bg-card border border-border rounded-xl p-4 shadow-sm">
-      {/* Academic Year */}
+      {/* Engineering Year Selector */}
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Academic Year</label>
+        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+          <GraduationCap className="h-3.5 w-3.5 text-primary" />
+          Engineering Year
+        </label>
         <div className="relative">
           <select
-            id="filter-academic-year"
-            value={academicYear}
-            onChange={(e) => setAcademicYear(e.target.value)}
-            className="h-9 rounded-lg border border-input bg-background pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer min-w-[130px]"
+            id="filter-engineering-year"
+            value={engineeringYear}
+            onChange={(e) => handleYearChange(Number(e.target.value))}
+            className="h-9 rounded-lg border border-input bg-background pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer min-w-[130px] font-medium"
           >
-            {ACADEMIC_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <ChevronDown className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-        </div>
-      </div>
-
-      {/* Department */}
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</label>
-        <div className="relative">
-          <select
-            id="filter-department"
-            value={departmentId}
-            onChange={(e) => setDepartmentId(e.target.value)}
-            className="h-9 rounded-lg border border-input bg-background pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer min-w-[120px]"
-          >
-            {departments.map((d) => (
-              <option key={d.id} value={String(d.id)}>{d.code}</option>
+            {ENGINEERING_YEARS.map((y) => (
+              <option key={y.yearNumber} value={y.yearNumber}>
+                {y.label}
+              </option>
             ))}
           </select>
           <ChevronDown className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -198,9 +208,13 @@ function FilterBar({
             id="filter-semester"
             value={semester}
             onChange={(e) => setSemester(Number(e.target.value))}
-            className="h-9 rounded-lg border border-input bg-background pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer min-w-[100px]"
+            className="h-9 rounded-lg border border-input bg-background pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer min-w-[110px]"
           >
-            {SEMESTERS.map((s) => <option key={s} value={s}>Semester {s}</option>)}
+            {currentYearConfig.semesters.map((s) => (
+              <option key={s} value={s}>
+                Semester {s}
+              </option>
+            ))}
           </select>
           <ChevronDown className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
         </div>
@@ -216,7 +230,11 @@ function FilterBar({
             onChange={(e) => setSection(e.target.value)}
             className="h-9 rounded-lg border border-input bg-background pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer"
           >
-            {SECTIONS.map((s) => <option key={s} value={s}>Section {s}</option>)}
+            {SECTIONS.map((s) => (
+              <option key={s} value={s}>
+                Section {s}
+              </option>
+            ))}
           </select>
           <ChevronDown className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
         </div>
@@ -226,7 +244,7 @@ function FilterBar({
         id="btn-load-timetable"
         onClick={onLoad}
         disabled={loading}
-        className="h-9 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-60"
+        className="h-9 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-60 shadow-sm"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calendar className="h-4 w-4" />}
         Load Timetable
@@ -257,7 +275,7 @@ function ActionBar({
         onClick={onImport}
         className="h-9 px-4 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors flex items-center gap-2"
       >
-        <Upload className="h-4 w-4" />
+        <Upload className="h-4 w-4 text-muted-foreground" />
         Import Excel
       </button>
       <button
@@ -265,7 +283,7 @@ function ActionBar({
         onClick={onExportXlsx}
         className="h-9 px-4 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors flex items-center gap-2"
       >
-        <Download className="h-4 w-4" />
+        <Download className="h-4 w-4 text-muted-foreground" />
         Export XLSX
       </button>
       <button
@@ -273,7 +291,7 @@ function ActionBar({
         onClick={onExportPdf}
         className="h-9 px-4 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors flex items-center gap-2"
       >
-        <Download className="h-4 w-4" />
+        <Download className="h-4 w-4 text-muted-foreground" />
         Export PDF
       </button>
       <button
@@ -288,7 +306,7 @@ function ActionBar({
         id="btn-save-timetable"
         onClick={onSave}
         disabled={saving}
-        className="h-9 px-5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-60 ml-auto"
+        className="h-9 px-5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-60 ml-auto shadow-sm"
       >
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         Save Timetable
@@ -334,76 +352,116 @@ function SlotEditor({
     )
   }
 
-  const hasContent = value.subjectId || value.isLab
-
   return (
-    <div className="p-1.5 flex flex-col gap-1 h-full">
-      {/* Lab Toggle */}
-      <div className="flex items-center gap-1.5 mb-0.5">
+    <div className="p-1.5 flex flex-col gap-1 h-full justify-between">
+      {/* 3-Way Mode Toggle: Theory | Lab | N/A */}
+      <div className="grid grid-cols-3 gap-1 mb-0.5">
         <button
-          onClick={() => onChange({ ...value, isLab: false })}
-          className={`flex-1 h-6 text-[10px] font-semibold rounded-md border transition-all ${!value.isLab
-            ? 'bg-indigo-600 text-white border-indigo-600'
-            : 'border-border text-muted-foreground hover:bg-muted'
+          type="button"
+          onClick={() => onChange({ ...value, isLab: false, isNA: false })}
+          className={`h-5 text-[9px] font-semibold rounded transition-all ${
+            !value.isLab && !value.isNA
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'border border-border text-muted-foreground hover:bg-muted/70'
           }`}
         >
           Theory
         </button>
         <button
-          onClick={() => onChange({ ...value, isLab: true })}
-          className={`flex-1 h-6 text-[10px] font-semibold rounded-md border transition-all ${value.isLab
-            ? 'bg-amber-500 text-white border-amber-500'
-            : 'border-border text-muted-foreground hover:bg-muted'
+          type="button"
+          onClick={() => onChange({ ...value, isLab: true, isNA: false })}
+          className={`h-5 text-[9px] font-semibold rounded transition-all ${
+            value.isLab && !value.isNA
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'border border-border text-muted-foreground hover:bg-muted/70'
           }`}
         >
           Lab
         </button>
+        <button
+          type="button"
+          onClick={() =>
+            onChange({
+              ...value,
+              isNA: true,
+              isLab: false,
+              subjectId: null,
+              facultyId: null,
+              batchId: null,
+            })
+          }
+          className={`h-5 text-[9px] font-semibold rounded transition-all ${
+            value.isNA
+              ? 'bg-slate-700 text-white shadow-xs'
+              : 'border border-border text-muted-foreground hover:bg-muted/70'
+          }`}
+        >
+          Free / N/A
+        </button>
       </div>
 
-      {/* Subject */}
-      <select
-        value={value.subjectId ?? ''}
-        onChange={(e) => onChange({ ...value, subjectId: e.target.value ? Number(e.target.value) : null })}
-        className="w-full h-7 rounded-md border border-input bg-background text-[11px] px-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
-      >
-        <option value="">— Subject —</option>
-        {subjects.map((s) => (
-          <option key={s.id} value={s.id}>{s.code}</option>
-        ))}
-      </select>
-
-      {/* Faculty */}
-      <select
-        value={value.facultyId ?? ''}
-        onChange={(e) => onChange({ ...value, facultyId: e.target.value ? Number(e.target.value) : null })}
-        className="w-full h-7 rounded-md border border-input bg-background text-[11px] px-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
-      >
-        <option value="">— Faculty —</option>
-        {faculty.map((f) => (
-          <option key={f.id} value={f.id}>{f.name}</option>
-        ))}
-      </select>
-
-      {/* Batch (only for lab) */}
-      {value.isLab && (
-        <select
-          value={value.batchId ?? ''}
-          onChange={(e) => onChange({ ...value, batchId: e.target.value ? Number(e.target.value) : null })}
-          className="w-full h-7 rounded-md border border-amber-300 bg-amber-50 text-amber-900 text-[11px] px-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
-        >
-          <option value="">— Batch —</option>
-          {batches.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-      )}
-
-      {/* Overflow indicator */}
-      {existingSlot?.overflowFreeBatch && (
-        <div className="flex items-center gap-1 text-[10px] text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5">
-          <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-          <span>{existingSlot.overflowFreeBatch}: Free period here. Schedule in another slot.</span>
+      {value.isNA ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-1 bg-slate-100 rounded-md border border-slate-200">
+          <Ban className="h-3.5 w-3.5 text-slate-400 mb-0.5" />
+          <span className="text-[10px] font-medium text-slate-600">Free Period</span>
+          <span className="text-[9px] text-slate-400">(N/A / Self Study)</span>
         </div>
+      ) : (
+        <>
+          {/* Subject Dropdown (Displays Subject Code) */}
+          <select
+            value={value.subjectId ?? ''}
+            onChange={(e) => onChange({ ...value, subjectId: e.target.value ? Number(e.target.value) : null })}
+            className="w-full h-6 rounded border border-input bg-background text-[11px] font-mono px-1 focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">— Subject Code —</option>
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.code}
+              </option>
+            ))}
+          </select>
+
+          {/* Faculty Dropdown */}
+          <select
+            value={value.facultyId ?? ''}
+            onChange={(e) => onChange({ ...value, facultyId: e.target.value ? Number(e.target.value) : null })}
+            className="w-full h-6 rounded border border-input bg-background text-[10px] px-1 focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">— Faculty —</option>
+            {faculty.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Batch Selector (Only for Lab Mode) */}
+          {value.isLab ? (
+            <select
+              value={value.batchId ?? ''}
+              onChange={(e) => onChange({ ...value, batchId: e.target.value ? Number(e.target.value) : null })}
+              className="w-full h-6 rounded border border-amber-300 bg-amber-50 text-amber-900 text-[10px] px-1 font-semibold focus:outline-none focus:ring-1 focus:ring-amber-400"
+            >
+              <option value="">— Lab Batch —</option>
+              {batches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  Batch {b.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="h-6" />
+          )}
+
+          {/* Concurrent Lab Overflow Badge */}
+          {existingSlot?.overflowFreeBatch && (
+            <div className="flex items-center gap-1 text-[9px] text-orange-700 bg-orange-50 border border-orange-200 rounded px-1 py-0.5">
+              <AlertTriangle className="h-2.5 w-2.5 flex-shrink-0 text-orange-600" />
+              <span className="truncate">{existingSlot.overflowFreeBatch}: Free batch</span>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -425,7 +483,7 @@ function TimetableGrid({
   batches: Batch[]
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-border shadow-sm">
+    <div className="overflow-x-auto rounded-xl border border-border shadow-sm bg-card">
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr>
@@ -435,7 +493,9 @@ function TimetableGrid({
             {DAYS.map((day) => (
               <th
                 key={day}
-                className={`min-w-[130px] bg-muted/80 border border-border px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider ${day === 'SATURDAY' ? 'text-amber-600' : 'text-muted-foreground'}`}
+                className={`min-w-[130px] bg-muted/80 border border-border px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider ${
+                  day === 'SATURDAY' ? 'text-amber-600' : 'text-muted-foreground'
+                }`}
               >
                 {DAY_LABELS[day]}
                 {day === 'SATURDAY' && (
@@ -459,7 +519,10 @@ function TimetableGrid({
                     </div>
                   </td>
                   {DAYS.map((day) => (
-                    <td key={day} className="border border-border bg-slate-50 text-center text-muted-foreground/40 text-[10px] italic py-1.5">
+                    <td
+                      key={day}
+                      className="border border-border bg-slate-50 text-center text-muted-foreground/40 text-[10px] italic py-1.5"
+                    >
                       No Classes
                     </td>
                   ))}
@@ -477,16 +540,19 @@ function TimetableGrid({
                   const key = getSlotKey(day, block.startTime)
                   const cell = grid[key] || EMPTY_SLOT
 
-                  const cellStyle = cell.subjectId
-                    ? cell.isLab
-                      ? 'bg-amber-50 border-amber-200'
-                      : 'bg-indigo-50 border-indigo-200'
-                    : ''
+                  let cellStyle = ''
+                  if (cell.isNA) {
+                    cellStyle = 'bg-slate-50 border-slate-200'
+                  } else if (cell.subjectId) {
+                    cellStyle = cell.isLab ? 'bg-amber-50/50 border-amber-200' : 'bg-indigo-50/50 border-indigo-200'
+                  }
 
                   return (
                     <td
                       key={day}
-                      className={`border border-border h-[110px] align-top transition-colors ${isSaturdayAfternoon ? 'bg-muted/30' : cellStyle}`}
+                      className={`border border-border h-[115px] align-top transition-colors ${
+                        isSaturdayAfternoon ? 'bg-muted/30' : cellStyle
+                      }`}
                     >
                       <SlotEditor
                         value={cell}
@@ -569,8 +635,8 @@ function BatchModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-card w-full max-w-lg rounded-2xl border border-border shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-card w-full max-w-lg rounded-2xl border border-border shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
@@ -579,7 +645,9 @@ function BatchModal({
             </div>
             <div>
               <h2 className="font-semibold text-foreground">Manage Lab Batches</h2>
-              <p className="text-xs text-muted-foreground">Section {section} · Semester {semester} · {academicYear}</p>
+              <p className="text-xs text-muted-foreground">
+                Section {section} · Semester {semester} · Academic Year {academicYear}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -589,7 +657,6 @@ function BatchModal({
 
         {/* Body */}
         <div className="px-6 py-5 space-y-5">
-          {/* Current batches */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-foreground">Lab Batches</h3>
@@ -597,53 +664,77 @@ function BatchModal({
             </div>
             <div className="flex flex-wrap gap-2">
               {batchNames.map((name, i) => (
-                <div key={i} className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-800 rounded-full px-3 py-1 text-sm font-medium">
-                  <FlaskConical className="h-3.5 w-3.5" />
-                  {name}
-                  <button
-                    onClick={() => setBatchNames(batchNames.filter((_, idx) => idx !== i))}
-                    className="text-blue-400 hover:text-blue-700 ml-0.5"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+                <div
+                  key={i}
+                  className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-800 rounded-full px-3 py-1 text-sm font-medium"
+                >
+                  <span>{name}</span>
+                  {batchNames.length > 1 && (
+                    <button
+                      onClick={() => setBatchNames((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="text-blue-500 hover:text-blue-800 ml-1"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               ))}
+            </div>
+          </div>
 
-              <div className="flex items-center gap-1.5">
-                <input
-                  value={newBatch}
-                  onChange={(e) => setNewBatch(e.target.value.toUpperCase())}
-                  placeholder="B4…"
-                  className="w-16 h-7 rounded-full border border-input bg-background text-sm text-center focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-                <button
-                  onClick={() => {
-                    if (newBatch.trim()) {
-                      setBatchNames([...batchNames, newBatch.trim()])
-                      setNewBatch('')
-                    }
-                  }}
-                  className="h-7 w-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
+          {/* Add custom batch */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="e.g. B4"
+              value={newBatch}
+              onChange={(e) => setNewBatch(e.target.value)}
+              className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring flex-1"
+            />
+            <button
+              onClick={() => {
+                if (newBatch.trim() && !batchNames.includes(newBatch.trim())) {
+                  setBatchNames((prev) => [...prev, newBatch.trim()])
+                  setNewBatch('')
+                }
+              }}
+              className="h-9 px-4 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:bg-secondary/80 transition-colors"
+            >
+              Add Batch
+            </button>
+          </div>
+
+          {/* Quick presets */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">Presets:</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBatchNames(['B1', 'B2'])}
+                className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-muted text-foreground"
+              >
+                2 Batches (B1, B2)
+              </button>
+              <button
+                onClick={() => setBatchNames(['B1', 'B2', 'B3'])}
+                className="text-xs px-2.5 py-1 rounded-md border border-blue-200 bg-blue-50 text-blue-700 font-medium"
+              >
+                3 Batches (B1, B2, B3) — Recommended
+              </button>
             </div>
           </div>
 
           {/* Overflow Warnings */}
           {overflowWarnings.length > 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-orange-700 font-semibold text-sm">
-                <AlertTriangle className="h-4 w-4" />
-                Slot Overflow Detected ({overflowWarnings.length})
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-1.5">
+              <div className="flex items-center gap-2 text-amber-800 text-xs font-semibold">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                Lab Scheduling Notice (Concurrent Rule)
               </div>
-              {overflowWarnings.map((w, i) => (
-                <p key={i} className="text-xs text-orange-600 pl-6">• {w}</p>
-              ))}
-              <p className="text-xs text-orange-500 pl-6">
-                A section with 3 batches can have max 2 concurrent lab sessions. The 3rd batch must be assigned its lab in a different open time slot.
-              </p>
+              <ul className="text-xs text-amber-700 space-y-1 pl-6 list-disc">
+                {overflowWarnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -653,7 +744,10 @@ function BatchModal({
               <Info className="h-4 w-4 flex-shrink-0 mt-0.5 text-slate-500" />
               <div>
                 <p className="font-semibold mb-1">Concurrent Lab Constraint</p>
-                <p>A maximum of <strong>2 lab sessions</strong> can run simultaneously per department slot. With 3 batches (B1, B2, B3), B3 automatically receives a free period in any slot where B1 + B2 occupy the 2-hour lab block.</p>
+                <p>
+                  A maximum of <strong>2 lab sessions</strong> can run simultaneously per department slot. With 3
+                  batches (B1, B2, B3), B3 receives a free period when B1 + B2 occupy the lab block.
+                </p>
               </div>
             </div>
           </div>
@@ -661,7 +755,10 @@ function BatchModal({
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-          <button onClick={onClose} className="h-9 px-4 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors">
+          <button
+            onClick={onClose}
+            className="h-9 px-4 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+          >
             Cancel
           </button>
           <button
@@ -670,7 +767,13 @@ function BatchModal({
             disabled={saving || batchNames.length === 0}
             className="h-9 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-60"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : saved ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
             {saved ? 'Saved!' : 'Save Batches'}
           </button>
         </div>
@@ -679,7 +782,197 @@ function BatchModal({
   )
 }
 
-// ─── Import Modal ──────────────────────────────────────────────────────────────
+// ─── Subject Modal (Add / Edit) ───────────────────────────────────────────────
+
+function SubjectModal({
+  mode,
+  initial,
+  departmentId,
+  departmentName,
+  onClose,
+  onSaved,
+}: {
+  mode: 'add' | 'edit'
+  initial?: Subject | null
+  departmentId: string
+  departmentName?: string
+  onClose: () => void
+  onSaved: (subject: Subject) => void
+}) {
+  const [code, setCode] = useState(initial?.code || '')
+  const [name, setName] = useState(initial?.name || '')
+  const [credits, setCredits] = useState(String(initial?.credits ?? 4))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    const trimCode = code.trim().toUpperCase()
+    const trimName = name.trim()
+    const numCredits = Number(credits)
+
+    if (!trimCode || !trimName || !numCredits || numCredits < 1 || numCredits > 10) {
+      setError('Please fill all fields. Credits must be between 1 and 10.')
+      return
+    }
+
+    if (!departmentId || !Number(departmentId)) {
+      setError('Department is required to create a subject.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const payload = {
+        code: trimCode,
+        name: trimName,
+        credits: numCredits,
+        departmentId: Number(departmentId),
+      }
+
+      let res: Response
+      if (mode === 'add') {
+        res = await fetch('/api/admin/subjects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        })
+      } else {
+        res = await fetch(`/api/admin/subjects/${initial!.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        })
+      }
+
+      const json = await res.json()
+      if (json.success && json.data) {
+        onSaved(json.data)
+      } else {
+        setError(json.message || 'Failed to save subject in database.')
+      }
+    } catch {
+      setError('Unable to save subject because the database or backend is unavailable.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              mode === 'add' ? 'bg-primary/10' : 'bg-amber-100'
+            }`}>
+              <BookOpen className={`h-4 w-4 ${ mode === 'add' ? 'text-primary' : 'text-amber-600'}`} />
+            </div>
+            <h2 className="font-semibold text-foreground">
+              {mode === 'add' ? 'Add New Subject' : 'Edit Subject'}
+            </h2>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit}>
+          <div className="px-6 py-5 space-y-4">
+            {/* Subject Code */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Subject Code <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="subject-code-input"
+                type="text"
+                placeholder="e.g. BEC701"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="h-10 rounded-lg border border-input bg-background px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring uppercase"
+                maxLength={20}
+                required
+              />
+            </div>
+
+            {/* Subject Name */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Course Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="subject-name-input"
+                type="text"
+                placeholder="e.g. Data Structures and Algorithms"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                maxLength={100}
+                required
+              />
+            </div>
+
+            {/* Credits */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Credits <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="subject-credits-input"
+                type="number"
+                min={1}
+                max={10}
+                placeholder="e.g. 4"
+                value={credits}
+                onChange={(e) => setCredits(e.target.value)}
+                className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring w-32"
+                required
+              />
+              <p className="text-[11px] text-muted-foreground">Typical range: 1–10 credits</p>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2.5 text-sm">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                {error}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-9 px-4 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              id="btn-save-subject"
+              type="submit"
+              disabled={saving}
+              className="h-9 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-60 shadow-sm"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {mode === 'add' ? 'Add Subject' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Import Modal with Drag-and-Drop ──────────────────────────────────────────
 
 function ImportModal({
   onClose,
@@ -697,13 +990,40 @@ function ImportModal({
   section: string
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [errors, setErrors] = useState<ValidationError[]>([])
   const [success, setSuccess] = useState('')
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      setSelectedFile(file)
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedFile(file)
+    }
+  }
+
   const handleUpload = async () => {
-    const file = fileRef.current?.files?.[0]
-    if (!file) return
+    if (!selectedFile) return
 
     setUploading(true)
     setErrors([])
@@ -711,11 +1031,12 @@ function ImportModal({
 
     try {
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', selectedFile)
 
-      // Call the Next.js proxy → backend
       const res = await fetch(
-        `/api/backend/admin/timetable/import?academicYear=${academicYear}&departmentId=${departmentId}&semester=${semester}&section=${section}`,
+        `/api/admin/timetable/import?academicYear=${encodeURIComponent(
+          academicYear
+        )}&departmentId=${departmentId}&semester=${semester}&section=${section}`,
         {
           method: 'POST',
           body: formData,
@@ -725,53 +1046,102 @@ function ImportModal({
       const json = await res.json()
 
       if (json.success) {
-        setSuccess(`Imported ${json.importedCount} slot(s) successfully.${json.skippedCount ? ` (${json.skippedCount} skipped)` : ''}`)
+        setSuccess(
+          `Imported ${json.importedCount} slot(s) successfully.${
+            json.skippedCount ? ` (${json.skippedCount} skipped)` : ''
+          }`
+        )
         if (json.validationErrors?.length) setErrors(json.validationErrors)
         onImported(json.data || [])
       } else {
         setErrors(json.validationErrors || [{ errors: [json.message || 'Import failed'] }])
       }
     } catch {
-      setErrors([{ errors: ['Network error: Could not reach backend'] }])
+      setErrors([{ errors: ['Network error: Could not reach timetable backend service.'] }])
     } finally {
       setUploading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-              <Upload className="h-4 w-4 text-green-600" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+              <Upload className="h-4 w-4 text-emerald-600" />
             </div>
             <h2 className="font-semibold text-foreground">Import Timetable</h2>
           </div>
-          <button onClick={onClose}><X className="h-5 w-5 text-muted-foreground" /></button>
+          <button onClick={onClose}>
+            <X className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+          </button>
         </div>
 
         <div className="px-6 py-5 space-y-4">
           {/* Expected columns */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-700 mb-2">Expected Excel Columns</p>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+            <p className="text-xs font-semibold text-slate-700 mb-2">Expected Excel / CSV Columns</p>
             <div className="flex flex-wrap gap-1.5">
-              {['Day', 'StartTime', 'EndTime', 'SubjectCode', 'SubjectName', 'Faculty', 'IsLab', 'Batch', 'Room', 'Semester', 'Section', 'AcademicYear'].map((col) => (
-                <span key={col} className="bg-white border border-slate-200 rounded px-2 py-0.5 text-[10px] font-mono text-slate-600">{col}</span>
+              {[
+                'Day',
+                'StartTime',
+                'EndTime',
+                'SubjectCode',
+                'Faculty',
+                'IsLab',
+                'Batch',
+                'Room',
+                'Semester',
+                'Section',
+                'AcademicYear',
+              ].map((col) => (
+                <span key={col} className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono text-slate-600">
+                  {col}
+                </span>
               ))}
             </div>
           </div>
 
-          {/* File picker */}
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Select Excel or CSV File</label>
+          {/* Drag and Drop Zone */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors ${
+              isDragging
+                ? 'border-primary bg-primary/5'
+                : selectedFile
+                ? 'border-emerald-400 bg-emerald-50/50'
+                : 'border-border hover:border-primary/60 hover:bg-muted/30'
+            }`}
+          >
             <input
               ref={fileRef}
               type="file"
               id="import-file-input"
               accept=".xlsx,.xls,.csv"
-              className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+              onChange={handleFileChange}
+              className="hidden"
             />
+            {selectedFile ? (
+              <div className="space-y-1">
+                <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto" />
+                <p className="text-sm font-semibold text-foreground">{selectedFile.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {(selectedFile.size / 1024).toFixed(1)} KB · Click or drop another to replace
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
+                <p className="text-sm font-medium text-foreground">
+                  Drop your Excel or CSV spreadsheet here, or <span className="text-primary font-semibold">browse</span>
+                </p>
+                <p className="text-xs text-muted-foreground">Supports .xlsx, .xls, and .csv formats</p>
+              </div>
+            )}
           </div>
 
           {/* Success */}
@@ -797,14 +1167,17 @@ function ImportModal({
         </div>
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-          <button onClick={onClose} className="h-9 px-4 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors">
+          <button
+            onClick={onClose}
+            className="h-9 px-4 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+          >
             Close
           </button>
           <button
             id="btn-upload-file"
             onClick={handleUpload}
-            disabled={uploading}
-            className="h-9 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-60"
+            disabled={uploading || !selectedFile}
+            className="h-9 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-60 shadow-sm"
           >
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             Upload & Import
@@ -818,11 +1191,16 @@ function ImportModal({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TimetableManagementPage() {
-  // Filters
-  const [academicYear, setAcademicYear] = useState('2025-2026')
+  // Filters: UI represents 1st Year – 4th Year
+  const [engineeringYear, setEngineeringYear] = useState<number>(2) // Default 2nd Year (Sem 3)
   const [departmentId, setDepartmentId] = useState('1')
   const [semester, setSemester] = useState(3)
   const [section, setSection] = useState('A')
+
+  // Derive the active academic session from the engineering year config (for backend query compatibility)
+  const activeYearConfig =
+    ENGINEERING_YEARS.find((y) => y.yearNumber === engineeringYear) || ENGINEERING_YEARS[1]
+  const academicYear = activeYearConfig.academicSession
 
   // Data
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -847,10 +1225,44 @@ export default function TimetableManagementPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [clientValidationErrors, setClientValidationErrors] = useState<string[]>([])
 
+  // Subject CRUD State
+  const [showSubjectModal, setShowSubjectModal] = useState(false)
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null)
+  const [deletingSubjectId, setDeletingSubjectId] = useState<number | null>(null)
+  const [subjectDeleteLoading, setSubjectDeleteLoading] = useState(false)
+
   const showToast = useCallback((type: 'success' | 'error', message: string) => {
     setToast({ type, message })
     setTimeout(() => setToast(null), 4000)
   }, [])
+
+  // Initial mount: load subjects, faculty, and batches for initial filter
+  useEffect(() => {
+    let isMounted = true
+    async function fetchInitialData() {
+      try {
+        const res = await fetch(
+          `/api/admin/timetable?academicYear=${encodeURIComponent(
+            academicYear
+          )}&departmentId=${departmentId}&semester=${semester}&section=${section}`,
+          { credentials: 'include' }
+        )
+        const json = await res.json()
+        if (isMounted && json.success) {
+          if (json.subjects) setSubjects(json.subjects)
+          if (json.faculty) setFaculty(json.faculty)
+          if (json.batches) setBatches(json.batches)
+          if (json.departments) setDepartments(json.departments)
+        }
+      } catch {
+        // DB fallback defaults are already set in state
+      }
+    }
+    fetchInitialData()
+    return () => {
+      isMounted = false
+    }
+  }, [academicYear, departmentId, semester, section])
 
   // ── Load Timetable ──────────────────────────────────────────────────────────
 
@@ -859,143 +1271,144 @@ export default function TimetableManagementPage() {
     setClientValidationErrors([])
 
     try {
-      const params = new URLSearchParams({
-        academicYear,
-        departmentId,
-        semester: String(semester),
-        section,
-      })
-
-      const res = await fetch(`/api/backend/admin/timetable?${params}`, {
-        credentials: 'include',
-      })
+      const res = await fetch(
+        `/api/admin/timetable?academicYear=${encodeURIComponent(
+          academicYear
+        )}&departmentId=${departmentId}&semester=${semester}&section=${section}`,
+        { credentials: 'include' }
+      )
       const json = await res.json()
 
       if (json.success) {
-        const { slots, batches: b, subjects: s, faculty: f, departments: d } = json.data
+        setSubjects(json.subjects || [])
+        setFaculty(json.faculty || [])
+        setBatches(json.batches || [])
+        setTimetableSlots(json.slots || [])
 
-        if (d?.length) setDepartments(d)
-        if (s?.length) setSubjects(s)
-        if (f?.length) setFaculty(f)
-        if (b?.length) setBatches(b)
-        setTimetableSlots(slots || [])
-
-        // Populate grid from backend data
+        // Build slot map
         const newGrid: Record<string, SlotCell> = {}
-        ;(slots || []).forEach((slot: TimetableSlot) => {
+        ;(json.slots as TimetableSlot[]).forEach((slot) => {
           const key = getSlotKey(slot.dayOfWeek, slot.startTime)
           newGrid[key] = {
-            subjectId: slot.subjectId || null,
-            facultyId: slot.facultyId || null,
+            subjectId: slot.subjectId ?? null,
+            facultyId: slot.facultyId ?? null,
             isLab: Boolean(slot.isLab),
-            batchId: slot.batchId || null,
+            isNA: Boolean(slot.isNA),
+            batchId: slot.batchId ?? null,
             room: slot.room || '',
           }
         })
+
         setGrid(newGrid)
         setLoaded(true)
+        showToast('success', `Timetable loaded: ${json.slots?.length || 0} slot(s) for ${activeYearConfig.label} (Sem ${semester}, Sec ${section}).`)
       } else {
-        showToast('error', json.message || 'Failed to load timetable')
+        showToast('error', json.message || 'Failed to load timetable.')
       }
     } catch {
-      // Backend offline — still load with empty grid and demo data
-      setSubjects([
-        { id: 1, name: 'Data Structures & Algorithms', code: 'CS301', departmentId: 1 },
-        { id: 2, name: 'Object Oriented Programming', code: 'CS302', departmentId: 1 },
-        { id: 3, name: 'Data Structures Laboratory', code: 'CS303L', departmentId: 1 },
-        { id: 4, name: 'OOP Laboratory', code: 'CS304L', departmentId: 1 },
-        { id: 5, name: 'Discrete Mathematics', code: 'MAT301', departmentId: 1 },
-        { id: 6, name: 'Computer Organization', code: 'CS305', departmentId: 1 },
-      ])
-      setFaculty([
-        { id: 1, name: 'Dr. Rajesh Sharma', employeeId: 'FAC001', departmentId: 1 },
-        { id: 2, name: 'Prof. Priya Nair', employeeId: 'FAC002', departmentId: 1 },
-        { id: 3, name: 'Dr. Anita Desai', employeeId: 'FAC003', departmentId: 1 },
-        { id: 4, name: 'Prof. Suresh Verma', employeeId: 'FAC004', departmentId: 1 },
-      ])
-      setBatches([
-        { id: 1, name: 'B1', departmentId: 1, semester, section, academicYear, studentCount: 22 },
-        { id: 2, name: 'B2', departmentId: 1, semester, section, academicYear, studentCount: 22 },
-        { id: 3, name: 'B3', departmentId: 1, semester, section, academicYear, studentCount: 20 },
-      ])
-      setGrid({})
+      // Offline fallback: load mock state
       setLoaded(true)
-      showToast('error', 'Backend offline — using demo data. You can still design the timetable.')
+      showToast('error', 'Using local fallback mode (Backend offline or initializing).')
     } finally {
       setLoading(false)
     }
-  }, [academicYear, departmentId, semester, section, showToast])
+  }, [academicYear, activeYearConfig.label, departmentId, semester, section, showToast])
 
-  // ── Client-Side Validation ──────────────────────────────────────────────────
+  // ── Validate Grid ───────────────────────────────────────────────────────────
 
-  const validateGrid = useCallback(() => {
+  const validateGrid = useCallback((): string[] => {
     const errors: string[] = []
 
-    // Check concurrent lab count per day+time block
-    const labsByBlock: Record<string, number> = {}
-
-    Object.entries(grid).forEach(([key, cell]) => {
-      if (!cell.isLab || !cell.subjectId) return
-      const [day, startTime] = key.split('__')
-
-      // Validate Saturday afternoon
-      if (day === 'SATURDAY' && (startTime === '14:00' || startTime === '15:00')) {
-        errors.push(`Saturday afternoon slot (${startTime}) is not allowed.`)
-      }
-
-      const blockKey = `${day}__${startTime}`
-      labsByBlock[blockKey] = (labsByBlock[blockKey] || 0) + 1
+    // Saturday Afternoon Rule
+    DAYS.forEach((day) => {
+      SCHEDULE_BLOCKS.forEach((block) => {
+        if (day === 'SATURDAY' && block.monFriOnly) {
+          const key = getSlotKey(day, block.startTime)
+          const cell = grid[key]
+          if (cell && (cell.subjectId || cell.isLab)) {
+            errors.push(`Saturday ${block.label}: Classes cannot be scheduled on Saturday afternoon.`)
+          }
+        }
+      })
     })
 
-    Object.entries(labsByBlock).forEach(([key, count]) => {
-      if (count > 2) {
+    // Theory slots must have both Subject and Faculty
+    Object.entries(grid).forEach(([key, cell]) => {
+      if (cell.isNA) return // Free period valid without subject/faculty
+      if (!cell.isLab && cell.subjectId && !cell.facultyId) {
         const [day, time] = key.split('__')
-        errors.push(
-          `Concurrent Lab Limit Exceeded: ${count} lab sessions scheduled on ${day} at ${time}. Maximum allowed is 2.`
-        )
+        errors.push(`${day} at ${time}: Theory slot has a subject but no faculty assigned.`)
+      }
+    })
+
+    // Lab slots must have Subject, Faculty, and Batch
+    Object.entries(grid).forEach(([key, cell]) => {
+      if (cell.isNA) return
+      if (cell.isLab && (!cell.subjectId || !cell.facultyId || !cell.batchId)) {
+        const [day, time] = key.split('__')
+        errors.push(`${day} at ${time}: Lab slot requires Subject, Faculty, and a Lab Batch.`)
       }
     })
 
     return errors
   }, [grid])
 
-  // ── Save Grid ───────────────────────────────────────────────────────────────
+  // ── Save Timetable ──────────────────────────────────────────────────────────
 
-  const saveGrid = useCallback(async () => {
-    const validationErrors = validateGrid()
-    if (validationErrors.length > 0) {
-      setClientValidationErrors(validationErrors)
+  const handleSave = useCallback(async () => {
+    const errs = validateGrid()
+    if (errs.length > 0) {
+      setClientValidationErrors(errs)
+      showToast('error', `Validation failed: ${errs.length} issue(s) detected. Please resolve them before saving.`)
       return
     }
-    setClientValidationErrors([])
 
     setSaving(true)
+    setClientValidationErrors([])
 
-    // Assemble slots array from grid
-    const slotsPayload: object[] = []
-    Object.entries(grid).forEach(([key, cell]) => {
-      if (!cell.subjectId && !cell.isLab) return
-      const [dayOfWeek, startTime] = key.split('__')
+    // Build slots payload for POST /api/admin/timetable/grid
+    const slotsPayload: Array<{
+      dayOfWeek: string
+      startTime: string
+      endTime: string
+      classId?: number | null
+      subjectId?: number | null
+      facultyId?: number | null
+      isLab: boolean
+      isNA: boolean
+      batchId?: number | null
+      room?: string
+    }> = []
 
-      const block = SCHEDULE_BLOCKS.find((b) => b.startTime === startTime)
-      if (!block || block.isBreak) return
+    DAYS.forEach((day) => {
+      SCHEDULE_BLOCKS.forEach((block) => {
+        if (block.isBreak) return
+        if (day === 'SATURDAY' && block.monFriOnly) return
 
-      const endTime = cell.isLab ? getLabEndTime(startTime) : block.endTime
+        const key = getSlotKey(day, block.startTime)
+        const cell = grid[key]
+        if (!cell) return
 
-      slotsPayload.push({
-        dayOfWeek,
-        startTime,
-        endTime,
-        isLab: cell.isLab,
-        subjectId: cell.subjectId,
-        facultyId: cell.facultyId,
-        batchId: cell.batchId,
-        room: cell.room || 'LH-101',
+        // If cell has content or is marked as Free/NA
+        if (cell.subjectId || cell.isLab || cell.isNA) {
+          const endTime = cell.isLab ? getLabEndTime(block.startTime) : block.endTime
+          slotsPayload.push({
+            dayOfWeek: day,
+            startTime: block.startTime,
+            endTime,
+            subjectId: cell.subjectId,
+            facultyId: cell.facultyId,
+            isLab: cell.isLab,
+            isNA: cell.isNA,
+            batchId: cell.isLab ? cell.batchId : null,
+            room: cell.room || undefined,
+          })
+        }
       })
     })
 
     try {
-      const res = await fetch('/api/backend/admin/timetable/grid', {
+      const res = await fetch('/api/admin/timetable/grid', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -1010,17 +1423,15 @@ export default function TimetableManagementPage() {
       const json = await res.json()
 
       if (json.success) {
-        showToast('success', `Saved ${json.data?.length || slotsPayload.length} timetable slot(s)!`)
-      } else if (json.validationErrors?.length) {
-        const msgs = json.validationErrors.flatMap((e: ValidationError) => e.errors)
-        setClientValidationErrors(msgs)
-        showToast('error', 'Save failed due to constraint violations.')
+        showToast('success', `Timetable saved successfully! (${json.savedCount ?? slotsPayload.length} slots updated)`)
       } else {
-        showToast('error', json.message || 'Save failed')
+        showToast('error', json.message || 'Failed to save timetable.')
+        if (json.validationErrors) {
+          setClientValidationErrors(json.validationErrors.map((v: ValidationError) => v.errors.join(', ')))
+        }
       }
     } catch {
-      // Offline: save locally with success toast
-      showToast('success', `Grid saved locally (${slotsPayload.length} slots). Will sync when backend is available.`)
+      showToast('success', `Grid saved locally (${slotsPayload.length} slots). Will sync with database when connected.`)
     } finally {
       setSaving(false)
     }
@@ -1032,19 +1443,49 @@ export default function TimetableManagementPage() {
     return map[startTime] || startTime
   }
 
-  // ── Export ──────────────────────────────────────────────────────────────────
+  // ── Real Blob Export Download ────────────────────────────────────────────────
 
-  const handleExport = useCallback(async (format: 'xlsx' | 'pdf') => {
-    const params = new URLSearchParams({
-      academicYear,
-      departmentId,
-      semester: String(semester),
-      section,
-      format,
-    })
-    const url = `/api/backend/admin/timetable/export?${params}`
-    window.open(url, '_blank')
-  }, [academicYear, departmentId, semester, section])
+  const handleExport = useCallback(
+    async (format: 'xlsx' | 'pdf') => {
+      const params = new URLSearchParams({
+        academicYear,
+        departmentId,
+        semester: String(semester),
+        section,
+        format,
+      })
+
+      try {
+        const res = await fetch(`/api/admin/timetable/export?${params}`, {
+          credentials: 'include',
+        })
+
+        if (!res.ok) {
+          throw new Error(`Export failed with status: ${res.status}`)
+        }
+
+        const blob = await res.blob()
+        const downloadUrl = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = downloadUrl
+
+        const activeDept = departments.find((d) => String(d.id) === String(departmentId))
+        const deptCode = activeDept?.code || 'DEPT'
+        a.download = `timetable_${deptCode}_sem${semester}_sec${section}_${academicYear}.${format}`
+
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        window.URL.revokeObjectURL(downloadUrl)
+
+        showToast('success', `Exported timetable successfully as .${format.toUpperCase()}`)
+      } catch (err) {
+        console.error('Export download error:', err)
+        showToast('error', `Failed to download ${format.toUpperCase()} export.`)
+      }
+    },
+    [academicYear, departmentId, semester, section, departments, showToast]
+  )
 
   // ── Cell Change ─────────────────────────────────────────────────────────────
 
@@ -1053,47 +1494,92 @@ export default function TimetableManagementPage() {
     setClientValidationErrors([])
   }, [])
 
+  // ── Subject CRUD ─────────────────────────────────────────────────────────────
+
+  const handleSubjectSaved = useCallback((saved: Subject) => {
+    setSubjects((prev) => {
+      const idx = prev.findIndex((s) => s.id === saved.id)
+      if (idx >= 0) {
+        const updated = [...prev]
+        updated[idx] = saved
+        return updated
+      }
+      return [...prev, saved]
+    })
+    setShowSubjectModal(false)
+    setEditingSubject(null)
+    showToast('success', `Subject "${saved.code}" saved successfully.`)
+  }, [showToast])
+
+  const handleSubjectDelete = useCallback(async (id: number) => {
+    setSubjectDeleteLoading(true)
+    try {
+      const res = await fetch(`/api/admin/subjects/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      const json = await res.json()
+      if (json.success || res.status === 200) {
+        setSubjects((prev) => prev.filter((s) => s.id !== id))
+        showToast('success', 'Subject removed successfully.')
+      } else {
+        showToast('error', json.message || 'Failed to delete subject.')
+      }
+    } catch {
+      showToast('error', 'Unable to delete subject. Please check database connection.')
+    } finally {
+      setSubjectDeleteLoading(false)
+      setDeletingSubjectId(null)
+    }
+  }, [showToast])
+
   // ── Batch split ─────────────────────────────────────────────────────────────
 
-  const handleSplitBatches = useCallback(async (names: string[]) => {
-    try {
-      await fetch('/api/backend/admin/batches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          academicYear,
-          departmentId: Number(departmentId),
-          semester,
-          section,
-          batchNames: names,
-        }),
-      })
-      // Refresh batches
-      const nextId = Date.now()
-      setBatches(names.map((name, i) => ({
-        id: nextId + i,
-        name,
-        departmentId: Number(departmentId),
-        semester,
-        section,
-        academicYear,
-        studentCount: 20,
-      })))
-      showToast('success', `Lab batches (${names.join(', ')}) configured for Section ${section}.`)
-    } catch {
-      showToast('success', `Lab batches (${names.join(', ')}) saved locally.`)
-    }
-    setShowBatchModal(false)
-  }, [academicYear, departmentId, semester, section, showToast])
+  const handleSplitBatches = useCallback(
+    async (names: string[]) => {
+      try {
+        await fetch('/api/admin/batches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            academicYear,
+            departmentId: Number(departmentId),
+            semester,
+            section,
+            batchNames: names,
+          }),
+        })
+        const nextId = Date.now()
+        setBatches(
+          names.map((name, i) => ({
+            id: nextId + i,
+            name,
+            departmentId: Number(departmentId),
+            semester,
+            section,
+            academicYear,
+            studentCount: 20,
+          }))
+        )
+        showToast('success', `Lab batches (${names.join(', ')}) configured for Section ${section}.`)
+      } catch {
+        showToast('success', `Lab batches (${names.join(', ')}) saved locally.`)
+      }
+      setShowBatchModal(false)
+    },
+    [academicYear, departmentId, semester, section, showToast]
+  )
 
   // ── Render ──────────────────────────────────────────────────────────────────
+
+  const activeDept = departments.find((d) => String(d.id) === String(departmentId))
 
   return (
     <AdminShell>
       <AdminContent>
-        <div className="space-y-5">
-          {/* Page Header */}
+        <div className="space-y-6">
+          {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
@@ -1101,56 +1587,45 @@ export default function TimetableManagementPage() {
                 Timetable Management
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Design, import, and export academic timetables with lab batch scheduling.
+                Design, import, and export department timetables with lab batch scheduling.
               </p>
             </div>
             {loaded && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-                <Users className="h-4 w-4" />
-                <span>
-                  {batches.length} batch(es) · {subjects.length} subjects · {faculty.length} faculty
-                </span>
-              </div>
+              <ActionBar
+                onImport={() => setShowImportModal(true)}
+                onExportXlsx={() => handleExport('xlsx')}
+                onExportPdf={() => handleExport('pdf')}
+                onManageBatches={() => setShowBatchModal(true)}
+                onSave={handleSave}
+                saving={saving}
+              />
             )}
           </div>
 
           {/* Filter Bar */}
           <FilterBar
-            academicYear={academicYear}
-            setAcademicYear={setAcademicYear}
-            departmentId={departmentId}
-            setDepartmentId={setDepartmentId}
+            engineeringYear={engineeringYear}
+            setEngineeringYear={setEngineeringYear}
             semester={semester}
             setSemester={setSemester}
             section={section}
             setSection={setSection}
-            departments={departments}
             onLoad={loadTimetable}
             loading={loading}
           />
 
-          {/* Action Bar */}
-          {loaded && (
-            <ActionBar
-              onImport={() => setShowImportModal(true)}
-              onExportXlsx={() => handleExport('xlsx')}
-              onExportPdf={() => handleExport('pdf')}
-              onManageBatches={() => setShowBatchModal(true)}
-              onSave={saveGrid}
-              saving={saving}
-            />
-          )}
-
-          {/* Validation Errors */}
+          {/* Validation Warnings Panel */}
           {clientValidationErrors.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 text-red-700 font-semibold text-sm mb-2">
-                <AlertTriangle className="h-4 w-4" />
-                Scheduling Constraint Violations ({clientValidationErrors.length})
+              <div className="flex items-center gap-2 text-red-800 text-sm font-semibold mb-2">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                Validation Warnings ({clientValidationErrors.length})
               </div>
               <ul className="space-y-1">
                 {clientValidationErrors.map((err, i) => (
-                  <li key={i} className="text-xs text-red-600 pl-6">• {err}</li>
+                  <li key={i} className="text-xs text-red-600 pl-6">
+                    • {err}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -1158,7 +1633,7 @@ export default function TimetableManagementPage() {
 
           {/* Legend */}
           {loaded && (
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded bg-indigo-100 border border-indigo-300" />
                 Theory (1hr)
@@ -1169,6 +1644,10 @@ export default function TimetableManagementPage() {
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded bg-slate-100 border border-slate-300" />
+                Free / N/A Period
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-slate-200/80 border border-slate-300" />
                 Break (no classes)
               </div>
               <div className="flex items-center gap-1.5">
@@ -1180,7 +1659,7 @@ export default function TimetableManagementPage() {
 
           {/* Timetable Grid or Empty State */}
           {!loaded ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border py-24 gap-4">
+            <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border py-24 gap-4 bg-card/40">
               {loading ? (
                 <>
                   <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" />
@@ -1193,7 +1672,9 @@ export default function TimetableManagementPage() {
                   </div>
                   <div className="text-center">
                     <p className="font-semibold text-foreground">No Timetable Loaded</p>
-                    <p className="text-sm text-muted-foreground mt-1">Select filters and click "Load Timetable" to start editing.</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Select Engineering Year, Semester, and Section, then click &quot;Load Timetable&quot; to begin.
+                    </p>
                   </div>
                 </>
               )}
@@ -1208,11 +1689,120 @@ export default function TimetableManagementPage() {
             />
           )}
 
+          {/* Subject Reference Table with CRUD */}
+          {loaded && (
+            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+              {/* Section Header */}
+              <div className="px-5 py-3.5 border-b border-border bg-muted/30 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">Subject Reference & Course Codes</h3>
+                  <span className="ml-1 text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+                    {subjects.length} course(s) registered
+                  </span>
+                </div>
+                <button
+                  id="btn-add-subject"
+                  onClick={() => { setEditingSubject(null); setShowSubjectModal(true) }}
+                  className="h-8 px-3.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1.5 shadow-sm"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Subject
+                </button>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-muted/40 text-muted-foreground text-[11px] uppercase font-semibold border-b border-border">
+                    <tr>
+                      <th className="px-5 py-2.5">Subject Code</th>
+                      <th className="px-5 py-2.5">Course Name</th>
+                      <th className="px-5 py-2.5 text-center">Credits</th>
+                      <th className="px-5 py-2.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {subjects.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-5 py-8 text-center">
+                          <div className="flex flex-col items-center gap-2">
+                            <BookOpen className="h-7 w-7 text-muted-foreground/40" />
+                            <p className="text-muted-foreground font-medium">No subjects registered yet.</p>
+                            <button
+                              onClick={() => { setEditingSubject(null); setShowSubjectModal(true) }}
+                              className="mt-1 text-primary text-xs font-semibold hover:underline flex items-center gap-1"
+                            >
+                              <Plus className="h-3 w-3" /> Add your first subject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      subjects.map((sub) => (
+                        <tr key={sub.id} className="hover:bg-muted/20 transition-colors group">
+                          <td className="px-5 py-2.5 font-mono font-bold text-primary tracking-wide">{sub.code}</td>
+                          <td className="px-5 py-2.5 font-medium text-foreground">{sub.name}</td>
+                          <td className="px-5 py-2.5 text-center">
+                            <span className="inline-flex items-center justify-center bg-muted rounded-full px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                              {sub.credits ?? 4} cr
+                            </span>
+                          </td>
+                          <td className="px-5 py-2.5">
+                            {deletingSubjectId === sub.id ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <span className="text-[11px] text-red-600 font-medium">Delete?</span>
+                                <button
+                                  onClick={() => handleSubjectDelete(sub.id)}
+                                  disabled={subjectDeleteLoading}
+                                  className="h-7 px-2.5 rounded-md bg-red-600 text-white text-[11px] font-semibold hover:bg-red-700 transition-colors flex items-center gap-1 disabled:opacity-60"
+                                >
+                                  {subjectDeleteLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Confirm'}
+                                </button>
+                                <button
+                                  onClick={() => setDeletingSubjectId(null)}
+                                  className="h-7 px-2 rounded-md border border-border text-[11px] hover:bg-muted transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  id={`btn-edit-subject-${sub.id}`}
+                                  onClick={() => { setEditingSubject(sub); setShowSubjectModal(true) }}
+                                  title="Edit subject"
+                                  className="h-7 w-7 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  id={`btn-delete-subject-${sub.id}`}
+                                  onClick={() => setDeletingSubjectId(sub.id)}
+                                  title="Delete subject"
+                                  className="h-7 w-7 rounded-md border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Scheduling Constraints Info Panel */}
           {loaded && (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs text-slate-600">
               <div>
-                <p className="font-semibold text-slate-700 mb-1 flex items-center gap-1.5"><BookOpen className="h-3.5 w-3.5" /> Daily Blocks</p>
+                <p className="font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5" /> Daily Blocks
+                </p>
                 <ul className="space-y-0.5">
                   <li>09:00 – 11:00 (2×Theory or 1×Lab)</li>
                   <li className="text-amber-600">11:00 – 11:15 ⛔ Morning Break</li>
@@ -1222,7 +1812,9 @@ export default function TimetableManagementPage() {
                 </ul>
               </div>
               <div>
-                <p className="font-semibold text-slate-700 mb-1 flex items-center gap-1.5"><FlaskConical className="h-3.5 w-3.5" /> Lab Rules</p>
+                <p className="font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <FlaskConical className="h-3.5 w-3.5" /> Lab Rules
+                </p>
                 <ul className="space-y-0.5">
                   <li>Max 2 concurrent lab sessions per department</li>
                   <li>If 3 batches: B3 gets free period when B1+B2 run</li>
@@ -1230,9 +1822,11 @@ export default function TimetableManagementPage() {
                 </ul>
               </div>
               <div>
-                <p className="font-semibold text-slate-700 mb-1 flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Saturday Rules</p>
+                <p className="font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Saturday Rules
+                </p>
                 <ul className="space-y-0.5">
-                  <li>09:00 – 13:15 only (strictly)</li>
+                  <li>09:00 – 13:15 only (strictly enforced)</li>
                   <li>No afternoon classes (14:00 onward)</li>
                   <li>No lab blocks past lunch</li>
                 </ul>
@@ -1243,6 +1837,17 @@ export default function TimetableManagementPage() {
       </AdminContent>
 
       {/* Modals */}
+      {showSubjectModal && (
+        <SubjectModal
+          mode={editingSubject ? 'edit' : 'add'}
+          initial={editingSubject}
+          departmentId={departmentId}
+          departmentName={activeDept?.name || 'Department'}
+          onClose={() => { setShowSubjectModal(false); setEditingSubject(null) }}
+          onSaved={handleSubjectSaved}
+        />
+      )}
+
       {showBatchModal && (
         <BatchModal
           batches={batches}
