@@ -359,6 +359,13 @@ export function validateSchedulingConstraints({
     }
   }
 
+  // N/A / Free Period slots: only need day+time validity (breaks, Saturday).
+  // Skip faculty, slot-duration, and concurrent lab checks.
+  const isNASlot = Boolean(slot.isNA) || (!slot.subjectId && !slot.classId);
+  if (isNASlot) {
+    return { valid: errors.length === 0, errors };
+  }
+
   // 4. Allowed slot durations
   const isLab = Boolean(slot.isLab);
   if (isLab) {
@@ -507,6 +514,46 @@ export const getAdminTimetable = async (req, res) => {
       if (dbSlots && dbSlots.length > 0) {
         slots = dbSlots
           .map((slot) => {
+            // Handle N/A / free slots (classId is null)
+            if (!slot.classId || slot.isNA) {
+              // N/A slots need departmentId/semester/section context from the batch or query params
+              const batch = dbBatches.find((b) => b.id === slot.batchId);
+              const slotDeptId = batch?.departmentId || currentDeptId;
+              const slotSem = batch?.semester || currentSem;
+              const slotSec = batch?.section || currentSec;
+              const slotYear = batch?.academicYear || currentYear;
+
+              if (
+                slotYear === currentYear &&
+                slotDeptId === currentDeptId &&
+                slotSem === currentSem &&
+                slotSec === currentSec
+              ) {
+                return {
+                  id: slot.id,
+                  classId: null,
+                  academicYear: slotYear,
+                  departmentId: slotDeptId,
+                  semester: slotSem,
+                  section: slotSec,
+                  dayOfWeek: slot.dayOfWeek,
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                  isLab: slot.isLab,
+                  isNA: true,
+                  subjectId: null,
+                  subjectCode: "N/A",
+                  subjectName: "Free Period",
+                  facultyId: null,
+                  facultyName: "",
+                  batchId: slot.batchId,
+                  batchName: batch?.name || null,
+                  room: null,
+                };
+              }
+              return null;
+            }
+
             const cls = classes.find((c) => c.id === slot.classId);
             if (!cls) return null;
             if (
@@ -530,6 +577,7 @@ export const getAdminTimetable = async (req, res) => {
                 startTime: slot.startTime,
                 endTime: slot.endTime,
                 isLab: slot.isLab,
+                isNA: false,
                 subjectId: cls.subjectId,
                 subjectCode: subj?.code || "",
                 subjectName: subj?.name || "",
@@ -738,8 +786,21 @@ export const saveAdminTimetableGrid = async (req, res) => {
     // Try saving to database if available
     try {
       for (const s of normalizedSlots) {
-        if (s.subjectId && s.facultyId) {
-          // Check or create Class
+        const isNASlot = !s.subjectId || !s.facultyId || s.isNA;
+
+        if (isNASlot) {
+          // N/A / Free Period — save with classId: null, isNA: true
+          await db.orm.public.TimetableSlot.create({
+            classId: null,
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            isLab: false,
+            isNA: true,
+            batchId: s.batchId ? Number(s.batchId) : null,
+          });
+        } else {
+          // Regular class slot — find or create Class, then create TimetableSlot
           let classItem = (await db.orm.public.Class.where({
             subjectId: Number(s.subjectId),
             facultyId: Number(s.facultyId),
@@ -767,6 +828,7 @@ export const saveAdminTimetableGrid = async (req, res) => {
               startTime: s.startTime,
               endTime: s.endTime,
               isLab: Boolean(s.isLab),
+              isNA: false,
               batchId: s.batchId ? Number(s.batchId) : null,
             });
           }
@@ -774,6 +836,92 @@ export const saveAdminTimetableGrid = async (req, res) => {
       }
     } catch (dbErr) {
       // Database unavailable or not migrated; fallback store holds state reliably
+    }
+
+    // ── B3 Overflow Auto-Enforcement ──────────────────────────────────────────
+    // If a section has 3 batches and only 2 lab sessions are assigned in a
+    // concurrent window, the 3rd batch automatically gets an N/A Free Period.
+    const sectionBatches = inMemoryBatches.filter(
+      (b) => b.departmentId === deptId && b.semester === sem && b.section === sec
+    );
+
+    if (sectionBatches.length === 3) {
+      const labSlots = savedSlots.filter((s) => s.isLab && s.batchId);
+
+      // Group lab slots by day + time window
+      const labWindows = {};
+      for (const ls of labSlots) {
+        const key = `${ls.dayOfWeek}_${ls.startTime}_${ls.endTime}`;
+        if (!labWindows[key]) labWindows[key] = [];
+        labWindows[key].push(ls);
+      }
+
+      for (const [key, windowSlots] of Object.entries(labWindows)) {
+        if (windowSlots.length === 2) {
+          const assignedBatchIds = windowSlots.map((ws) => ws.batchId);
+          const freeBatch = sectionBatches.find((b) => !assignedBatchIds.includes(b.id));
+
+          if (freeBatch) {
+            const [dayOfWeek, startTime, endTime] = key.split("_");
+
+            // Check if N/A already exists for this batch in this window
+            const alreadyExists = savedSlots.some(
+              (s) =>
+                s.isNA &&
+                s.batchId === freeBatch.id &&
+                s.dayOfWeek === dayOfWeek &&
+                s.startTime === startTime &&
+                s.endTime === endTime
+            );
+
+            if (!alreadyExists) {
+              const naSlot = {
+                id: nextId++,
+                classId: null,
+                academicYear,
+                departmentId: deptId,
+                semester: sem,
+                section: sec,
+                dayOfWeek,
+                startTime,
+                endTime,
+                isLab: false,
+                isNA: true,
+                subjectId: null,
+                subjectCode: "N/A",
+                subjectName: "Free Period",
+                facultyId: null,
+                facultyName: "",
+                batchId: freeBatch.id,
+                batchName: freeBatch.name,
+                room: null,
+              };
+
+              inMemorySlots.push(naSlot);
+              savedSlots.push(naSlot);
+
+              // Persist overflow N/A to DB
+              try {
+                await db.orm.public.TimetableSlot.create({
+                  classId: null,
+                  dayOfWeek,
+                  startTime,
+                  endTime,
+                  isLab: false,
+                  isNA: true,
+                  batchId: freeBatch.id,
+                });
+              } catch {
+                // DB unavailable — in-memory slot is sufficient
+              }
+
+              console.log(
+                `[B3 Overflow] Auto-created N/A Free Period for batch ${freeBatch.name} on ${dayOfWeek} ${startTime}-${endTime}`
+              );
+            }
+          }
+        }
+      }
     }
 
     return res.status(200).json({
@@ -899,10 +1047,92 @@ export const importAdminTimetable = async (req, res) => {
     // Append imported slots to memory store
     importedSlots.forEach((slot) => inMemorySlots.push(slot));
 
+    // Persist imported slots to database (mirrors grid-save logic)
+    let dbSavedCount = 0;
+    try {
+      for (const s of importedSlots) {
+        const isNASlot = !s.subjectCode || s.subjectCode === "N/A" || s.isNA;
+
+        if (isNASlot) {
+          await db.orm.public.TimetableSlot.create({
+            classId: null,
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            isLab: false,
+            isNA: true,
+            batchId: s.batchId ? Number(s.batchId) : null,
+          });
+          dbSavedCount++;
+        } else if (s.subjectCode && s.departmentId) {
+          // Try to find subject by code
+          let subject = null;
+          let facultyItem = null;
+          try {
+            const allSubjects = await db.orm.public.Subject.all();
+            subject = allSubjects.find(
+              (sub) => sub.code === s.subjectCode && sub.departmentId === s.departmentId
+            );
+
+            if (s.facultyName) {
+              const allFaculty = await db.orm.public.Faculty.all();
+              const allUsers = await db.orm.public.User.all();
+              facultyItem = allFaculty.find((f) => {
+                const u = allUsers.find((user) => user.id === f.userId);
+                return u && u.name.toLowerCase().includes(s.facultyName.toLowerCase());
+              });
+            }
+          } catch {
+            // DB query failed, skip DB persistence for this slot
+            continue;
+          }
+
+          if (subject && facultyItem) {
+            let classItem = (await db.orm.public.Class.where({
+              subjectId: subject.id,
+              facultyId: facultyItem.id,
+              departmentId: s.departmentId,
+              semester: s.semester,
+              section: s.section,
+              academicYear: s.academicYear,
+            }).first?.()) || null;
+
+            if (!classItem) {
+              classItem = await db.orm.public.Class.create({
+                subjectId: subject.id,
+                facultyId: facultyItem.id,
+                departmentId: s.departmentId,
+                semester: s.semester,
+                section: s.section,
+                academicYear: s.academicYear,
+              });
+            }
+
+            if (classItem && classItem.id) {
+              await db.orm.public.TimetableSlot.create({
+                classId: classItem.id,
+                dayOfWeek: s.dayOfWeek,
+                startTime: s.startTime,
+                endTime: s.endTime,
+                isLab: Boolean(s.isLab),
+                isNA: false,
+                batchId: s.batchId ? Number(s.batchId) : null,
+              });
+              dbSavedCount++;
+            }
+          }
+        }
+      }
+    } catch (dbErr) {
+      console.error("Import DB persistence error (non-fatal):", dbErr.message);
+      // Database unavailable or not migrated; in-memory store holds state
+    }
+
     return res.status(200).json({
       success: true,
-      message: `Successfully imported ${importedSlots.length} timetable slot(s).`,
+      message: `Successfully imported ${importedSlots.length} timetable slot(s).${dbSavedCount > 0 ? ` ${dbSavedCount} persisted to database.` : ""}`,
       importedCount: importedSlots.length,
+      dbSavedCount,
       skippedCount: validationErrors.length,
       validationErrors: validationErrors.length > 0 ? validationErrors : undefined,
       data: importedSlots,
