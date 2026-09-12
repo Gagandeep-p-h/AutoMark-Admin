@@ -38,6 +38,13 @@ export async function PATCH(
   }
 }
 
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return PATCH(req, { params });
+}
+
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

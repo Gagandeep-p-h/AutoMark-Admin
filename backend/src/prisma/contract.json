@@ -132,6 +132,27 @@
               }
             ]
           },
+          "Designation": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "HOD",
+                "value": "HOD"
+              },
+              {
+                "name": "PROFESSOR",
+                "value": "PROFESSOR"
+              },
+              {
+                "name": "ASSOCIATE_PROFESSOR",
+                "value": "ASSOCIATE_PROFESSOR"
+              },
+              {
+                "name": "ASSISTANT_PROFESSOR",
+                "value": "ASSISTANT_PROFESSOR"
+              }
+            ]
+          },
           "UserRole": {
             "codecId": "pg/text@1",
             "members": [
@@ -974,10 +995,16 @@
                 }
               },
               "designation": {
-                "nullable": true,
+                "nullable": false,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "Designation",
+                  "namespaceId": "public",
+                  "plane": "domain"
                 }
               },
               "employeeId": {
@@ -2802,6 +2829,13 @@
               "uniques": []
             },
             "faculty": {
+              "checks": [
+                {
+                  "expression": "\"designation\" IN ('HOD', 'PROFESSOR', 'ASSOCIATE_PROFESSOR', 'ASSISTANT_PROFESSOR')",
+                  "name": "faculty_designation_check_77b7741f",
+                  "prefix": "faculty_designation_check"
+                }
+              ],
               "columns": {
                 "createdAt": {
                   "codecId": "pg/timestamptz-string@1",
@@ -2819,8 +2853,18 @@
                 },
                 "designation": {
                   "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "ASSISTANT_PROFESSOR"
+                  },
                   "nativeType": "text",
-                  "nullable": true
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "Designation",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
                 },
                 "employeeId": {
                   "codecId": "pg/text@1",
@@ -3786,6 +3830,15 @@
                 "SATURDAY"
               ]
             },
+            "Designation": {
+              "kind": "valueSet",
+              "values": [
+                "HOD",
+                "PROFESSOR",
+                "ASSOCIATE_PROFESSOR",
+                "ASSISTANT_PROFESSOR"
+              ]
+            },
             "UserRole": {
               "kind": "valueSet",
               "values": [
@@ -3800,7 +3853,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "4c1b6b8da424e4dcc88a58b58a0d87afc03c69035f9aa3d04c8818bb295bb219"
+    "storageHash": "d046391aea7eedba24a9e78451ec019679a5440967588d16d9b149a43c128097"
   },
   "execution": {
     "executionHash": "8835ff5c1e3848be47e5a935b05036af6dc8d0af12df9b77e5c7c13cf21e0592",

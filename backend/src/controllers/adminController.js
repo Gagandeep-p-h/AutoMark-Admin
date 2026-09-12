@@ -1500,9 +1500,29 @@ export const deleteAdminStudent = async (req, res) => {
   }
 };
 
+export const VALID_FACULTY_DESIGNATIONS = [
+  "HOD",
+  "PROFESSOR",
+  "ASSOCIATE_PROFESSOR",
+  "ASSISTANT_PROFESSOR",
+];
+
+export function normalizeFacultyDesignation(value) {
+  if (!value) return "ASSISTANT_PROFESSOR";
+  const str = String(value).trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (VALID_FACULTY_DESIGNATIONS.includes(str)) return str;
+  if (str.includes("HOD")) return "HOD";
+  if (str.includes("ASSOCIATE")) return "ASSOCIATE_PROFESSOR";
+  if (str.includes("ASSISTANT")) return "ASSISTANT_PROFESSOR";
+  if (str.includes("PROFESSOR")) return "PROFESSOR";
+  return null;
+}
+
 /**
  * GET /api/admin/faculty
- * Retrieves faculty directory with HOD department isolation and DEAN filtering.
+ * Retrieves faculty directory.
+ * Supports ?all=true so timetable interfaces can list faculty from ANY department.
+ * Also supports HOD department isolation and DEAN filtering.
  */
 export const getAdminFaculty = async (req, res) => {
   try {
@@ -1518,15 +1538,21 @@ export const getAdminFaculty = async (req, res) => {
       });
     }
 
-    // SECURITY ENFORCEMENT:
-    // If caller is an HOD, their department is strictly locked from their verified JWT.
+    // Support query parameter ?all=true for cross-department faculty access (e.g. timetable assignments)
+    const isAll =
+      req.query.all === "true" ||
+      req.query.all === true ||
+      String(req.query.all).toLowerCase() === "true";
+
     let targetDepartment = null;
-    if (hodDepartment) {
-      targetDepartment = hodDepartment;
-    } else {
-      const queryDept = (req.query.department || "").trim().toUpperCase();
-      if (queryDept && queryDept !== "ALL" && queryDept !== "DEAN" && queryDept !== "ALL DEPARTMENTS") {
-        targetDepartment = queryDept;
+    if (!isAll) {
+      if (hodDepartment) {
+        targetDepartment = hodDepartment;
+      } else {
+        const queryDept = (req.query.department || "").trim().toUpperCase();
+        if (queryDept && queryDept !== "ALL" && queryDept !== "DEAN" && queryDept !== "ALL DEPARTMENTS") {
+          targetDepartment = queryDept;
+        }
       }
     }
 
@@ -1541,20 +1567,34 @@ export const getAdminFaculty = async (req, res) => {
     let result = (faculties || []).map((f) => {
       const u = users.find((user) => user.id === f.userId);
       const d = departments.find((dept) => dept.id === f.departmentId);
+      const designation = f.designation || "ASSISTANT_PROFESSOR";
+
       return {
         id: f.id,
         userId: f.userId,
         name: u?.name || "Unknown",
         email: u?.email || "",
         employeeId: f.employeeId,
+        departmentId: f.departmentId,
         department: d?.name || "Unknown",
         departmentCode: d?.code || "Unknown",
-        departmentId: f.departmentId,
-        designation: f.designation || null,
+        designation,
+        isActive: u?.isActive !== false,
+        user: {
+          id: u?.id || f.userId,
+          name: u?.name || "Unknown",
+          email: u?.email || "",
+          isActive: u?.isActive !== false,
+        },
+        departmentDetails: {
+          id: d?.id || f.departmentId,
+          name: d?.name || "Unknown",
+          code: d?.code || "Unknown",
+        },
       };
     });
 
-    // 1. Department Filter / HOD Isolation
+    // 1. Department Filter / HOD Isolation (bypassed if ?all=true)
     if (targetDepartment) {
       result = result.filter(
         (f) =>
@@ -1595,6 +1635,7 @@ export const getAdminFaculty = async (req, res) => {
       total: result.length,
       isHod: Boolean(hodDepartment),
       department: targetDepartment,
+      crossDepartment: isAll,
     });
   } catch (error) {
     console.error("Get admin faculty error:", error);
@@ -1607,7 +1648,7 @@ export const getAdminFaculty = async (req, res) => {
 
 /**
  * POST /api/admin/faculty
- * Adds a new faculty member manually.
+ * Adds a new faculty member with Designation enum validation and transactional rollback.
  * Enforces HOD department isolation and validates unique employeeId & email.
  */
 export const createAdminFaculty = async (req, res) => {
@@ -1634,10 +1675,12 @@ export const createAdminFaculty = async (req, res) => {
       });
     }
 
-    if (!designation) {
+    // Validate Designation against enum values
+    const finalDesignation = normalizeFacultyDesignation(designation);
+    if (!finalDesignation) {
       return res.status(400).json({
         success: false,
-        message: "Designation is required",
+        message: `Invalid designation. Allowed values: ${VALID_FACULTY_DESIGNATIONS.join(", ")}`,
       });
     }
 
@@ -1696,9 +1739,6 @@ export const createAdminFaculty = async (req, res) => {
     }
 
     // Secure credential handling:
-    // 1. If caller explicitly provides a strong password (>= 8 chars), use it.
-    // 2. Otherwise, generate a cryptographically random, high-entropy temporary credential.
-    // NEVER use a universal known password (e.g. 'admin123').
     let rawPassword = password;
     let temporaryPassword = null;
 
@@ -1714,9 +1754,10 @@ export const createAdminFaculty = async (req, res) => {
       rawPassword = temporaryPassword;
     }
 
+    // Step 1: Hash password using bcrypt
     const passwordHash = await bcrypt.hash(rawPassword, 10);
 
-    // 1. Create User
+    // Step 2: Create User with role = FACULTY
     const user = await db.orm.public.User.create({
       name: String(name).trim(),
       email: normalizedEmail,
@@ -1725,13 +1766,23 @@ export const createAdminFaculty = async (req, res) => {
       isActive: true,
     });
 
-    // 2. Create Faculty record
-    const faculty = await db.orm.public.Faculty.create({
-      userId: user.id,
-      employeeId: normalizedEmployeeId,
-      departmentId: selectedDept.id,
-      designation: String(designation).trim(),
-    });
+    // Step 3: Create Faculty linked to User.id and departmentId with transactional rollback protection
+    let faculty;
+    try {
+      faculty = await db.orm.public.Faculty.create({
+        userId: user.id,
+        employeeId: normalizedEmployeeId,
+        departmentId: selectedDept.id,
+        designation: finalDesignation,
+      });
+    } catch (facultyError) {
+      // Compensating rollback: remove User if Faculty creation fails
+      console.error("Failed to create faculty record, rolling back user creation:", facultyError);
+      await db.orm.public.User.where({ id: user.id }).delete().catch((err) => {
+        console.error("Rollback failed to delete user:", err);
+      });
+      throw facultyError;
+    }
 
     const facultyData = {
       id: faculty.id,
@@ -1743,6 +1794,17 @@ export const createAdminFaculty = async (req, res) => {
       departmentCode: selectedDept.code,
       departmentId: selectedDept.id,
       designation: faculty.designation,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        isActive: user.isActive,
+      },
+      departmentDetails: {
+        id: selectedDept.id,
+        name: selectedDept.name,
+        code: selectedDept.code,
+      },
       ...(temporaryPassword ? { temporaryPassword } : {}),
     };
 
@@ -1762,9 +1824,9 @@ export const createAdminFaculty = async (req, res) => {
 };
 
 /**
- * PATCH /api/admin/faculty/:id
- * Updates an existing faculty member's Name, Employee ID, Department, Designation.
- * Enforces HOD department isolation.
+ * PUT /api/admin/faculty/:id & PATCH /api/admin/faculty/:id
+ * Updates an existing faculty member's Name, Email, Employee ID, Department, Designation.
+ * Enforces HOD department isolation and email/employeeId uniqueness.
  */
 export const updateAdminFaculty = async (req, res) => {
   try {
@@ -1802,7 +1864,7 @@ export const updateAdminFaculty = async (req, res) => {
       });
     }
 
-    const { name, employeeId, department, departmentId, designation } = req.body;
+    const { name, email, employeeId, department, departmentId, designation } = req.body;
 
     // HOD ISOLATION: An HOD MUST NOT be able to move faculty to another department.
     if (isHod && (department !== undefined || departmentId !== undefined)) {
@@ -1842,7 +1904,34 @@ export const updateAdminFaculty = async (req, res) => {
       await db.orm.public.User.where({ id: faculty.userId }).update({ name: updatedName });
     }
 
-    // 2. Check and update Employee ID
+    // 2. Update Email on User with duplicate collision check
+    let updatedEmail = undefined;
+    if (email !== undefined && String(email).trim().length > 0) {
+      const normalizedEmail = String(email).trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(normalizedEmail)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid email address format.",
+        });
+      }
+
+      const allUsers = await db.orm.public.User.all();
+      const duplicateUser = allUsers.find(
+        (u) => u.id !== faculty.userId && u.email.toLowerCase() === normalizedEmail
+      );
+      if (duplicateUser) {
+        return res.status(409).json({
+          success: false,
+          message: `Email "${normalizedEmail}" is already in use by another account.`,
+        });
+      }
+
+      updatedEmail = normalizedEmail;
+      await db.orm.public.User.where({ id: faculty.userId }).update({ email: updatedEmail });
+    }
+
+    // 3. Check and update Employee ID
     const facultyUpdates = {};
     if (employeeId && String(employeeId).trim().toUpperCase() !== faculty.employeeId) {
       const normalizedEmployeeId = String(employeeId).trim().toUpperCase();
@@ -1856,12 +1945,19 @@ export const updateAdminFaculty = async (req, res) => {
       facultyUpdates.employeeId = normalizedEmployeeId;
     }
 
-    // 3. Update Designation
+    // 4. Update Designation with enum validation
     if (designation !== undefined) {
-      facultyUpdates.designation = String(designation || "").trim() || null;
+      const finalDesignation = normalizeFacultyDesignation(designation);
+      if (!finalDesignation) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid designation. Allowed values: ${VALID_FACULTY_DESIGNATIONS.join(", ")}`,
+        });
+      }
+      facultyUpdates.designation = finalDesignation;
     }
 
-    // 4. Update Department (Super Admin can change faculty department to any valid department in PostgreSQL)
+    // 5. Update Department (Admin can change faculty department to any valid department in PostgreSQL)
     if (isAdmin && (department !== undefined || departmentId !== undefined)) {
       const deptQuery = String(department || "").trim();
       const deptIdQuery =
@@ -1900,13 +1996,27 @@ export const updateAdminFaculty = async (req, res) => {
 
     const updatedFacultyData = {
       id: faculty.id,
+      userId: faculty.userId,
       name: updatedName || updatedUser?.name || "Faculty",
+      email: updatedEmail || updatedUser?.email || "",
       employeeId: facultyUpdates.employeeId || faculty.employeeId,
       department: updatedDept?.name || currentDept?.name,
       departmentCode: updatedDept?.code || currentDept?.code,
       departmentId: updatedDept?.id || faculty.departmentId,
       designation:
         facultyUpdates.designation !== undefined ? facultyUpdates.designation : faculty.designation,
+      isActive: updatedUser?.isActive !== false,
+      user: {
+        id: updatedUser?.id || faculty.userId,
+        name: updatedName || updatedUser?.name || "Faculty",
+        email: updatedEmail || updatedUser?.email || "",
+        isActive: updatedUser?.isActive !== false,
+      },
+      departmentDetails: {
+        id: updatedDept?.id || faculty.departmentId,
+        name: updatedDept?.name || currentDept?.name,
+        code: updatedDept?.code || currentDept?.code,
+      },
     };
 
     return res.status(200).json({
@@ -1926,7 +2036,8 @@ export const updateAdminFaculty = async (req, res) => {
 
 /**
  * DELETE /api/admin/faculty/:id
- * Safely deletes a faculty member with dependency guards and HOD isolation.
+ * Safely deletes or deactivates (soft deletes) a faculty member.
+ * Validates that existing Class links do not cause database key violations (onDelete safety checks).
  */
 export const deleteAdminFaculty = async (req, res) => {
   try {
@@ -1964,12 +2075,34 @@ export const deleteAdminFaculty = async (req, res) => {
       });
     }
 
-    // Safest deletion guard: Check if faculty has active class assignments
+    // Class relation guard: Check if faculty is actively assigned to classes
     const classes = await db.orm.public.Class.where({ facultyId: faculty.id }).all();
     if (classes && classes.length > 0) {
       return res.status(400).json({
         success: false,
-        message: `Cannot delete faculty member assigned to ${classes.length} active academic class(es). Please reassign or remove class assignments first.`,
+        message: `Cannot delete faculty member assigned to ${classes.length} active academic class(es). Reassign or remove class assignments first to prevent foreign key violations.`,
+      });
+    }
+
+    // Support soft-delete (?soft=true, ?deactivate=true, or body { soft: true, action: "deactivate" })
+    const isSoftDelete =
+      req.query.soft === "true" ||
+      req.query.deactivate === "true" ||
+      req.body?.soft === true ||
+      req.body?.action === "deactivate";
+
+    if (isSoftDelete) {
+      if (faculty.userId) {
+        await db.orm.public.User.where({ id: faculty.userId }).update({ isActive: false });
+      }
+      return res.status(200).json({
+        success: true,
+        message: "Faculty user account deactivated successfully (soft deleted).",
+        data: {
+          id: faculty.id,
+          employeeId: faculty.employeeId,
+          isActive: false,
+        },
       });
     }
 
@@ -1984,12 +2117,17 @@ export const deleteAdminFaculty = async (req, res) => {
     // Delete Faculty record
     await db.orm.public.Faculty.where({ id: faculty.id }).delete();
 
-    // Delete associated User record if role is FACULTY
+    // Delete or deactivate associated User record
     if (faculty.userId) {
       const users = await db.orm.public.User.where({ id: faculty.userId }).all();
       const user = users[0];
       if (user && user.role === "FACULTY") {
-        await db.orm.public.User.where({ id: user.id }).delete();
+        try {
+          await db.orm.public.User.where({ id: user.id }).delete();
+        } catch (uErr) {
+          // If User deletion has other FK dependencies, safely set isActive: false
+          await db.orm.public.User.where({ id: user.id }).update({ isActive: false });
+        }
       }
     }
 

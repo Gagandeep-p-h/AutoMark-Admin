@@ -17,6 +17,13 @@ enum AttendanceSource {
   MANUAL
 }
 
+enum Designation {
+  HOD
+  PROFESSOR
+  ASSOCIATE_PROFESSOR
+  ASSISTANT_PROFESSOR
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   name         String
@@ -86,7 +93,7 @@ model Faculty {
   userId       Int      @unique
   employeeId   String   @unique
   departmentId Int
-  designation  String?
+  designation  Designation @default(ASSISTANT_PROFESSOR)
 
   user         User       @relation(fields: [userId], references: [id])
   department   Department @relation(fields: [departmentId], references: [id])
