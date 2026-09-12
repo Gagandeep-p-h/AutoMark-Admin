@@ -1,6 +1,7 @@
 import express from "express";
 
 import { authenticate } from "../middleware/authMiddleware.js";
+import { authorize } from "../middleware/roleMiddleware.js";
 
 import {
   getStudents,
@@ -9,7 +10,7 @@ import {
 
 const router = express.Router();
 
-router.get("/", authenticate, getStudents);
-router.post("/", authenticate, createStudent);
+router.get("/", authenticate, authorize("ADMIN", "HOD", "FACULTY"), getStudents);
+router.post("/", authenticate, authorize("ADMIN", "HOD"), createStudent);
 
 export default router;

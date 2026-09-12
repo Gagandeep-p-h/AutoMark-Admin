@@ -70,7 +70,7 @@ const getApiBase = () => {
   }
   return process.env.BACKEND_INTERNAL_URL 
     ? `${process.env.BACKEND_INTERNAL_URL}/api`
-    : 'http://localhost:5000/api';
+    : 'http://localhost:5001/api';
 };
 
 /**
@@ -157,38 +157,18 @@ export async function getStudents(
         };
       }
     }
-  } catch (err) {
-    // fallback below
-  }
-
-  // Comprehensive fallback students covering all departments
-  const allDemoStudents: StudentRecord[] = [
-    { id: 101, name: 'Rahul Sharma', usn: '01CS123', department: 'Computer Science & Engineering', semester: 5, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: true, boundDeviceName: 'Pixel 8' },
-    { id: 102, name: 'Ananya Singh', usn: '01CS124', department: 'Computer Science & Engineering', semester: 5, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: true, boundDeviceName: 'iPhone 15' },
-    { id: 103, name: 'Vikram Patel', usn: '01CS125', department: 'Computer Science & Engineering', semester: 5, section: 'B', academicYear: '2026-27', account: 'Active', deviceBound: true, boundDeviceName: 'Galaxy S23' },
-    { id: 104, name: 'Arjun Kumar', usn: '01CS127', department: 'Computer Science & Engineering', semester: 5, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: true, boundDeviceName: 'OnePlus 11' },
-    { id: 201, name: 'Priya Sharma', usn: '01AI001', department: 'Artificial Intelligence & Machine Learning', semester: 3, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: true, boundDeviceName: 'iPhone 14' },
-    { id: 202, name: 'Rohit Gupta', usn: '01AI002', department: 'Artificial Intelligence & Machine Learning', semester: 3, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: false, boundDeviceName: null },
-    { id: 301, name: 'Ishita Rao', usn: '01EC203', department: 'Electronics & Communication', semester: 3, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: true, boundDeviceName: 'iPhone 14' },
-    { id: 302, name: 'Manoj Kumar', usn: '01EC204', department: 'Electronics & Communication', semester: 3, section: 'B', academicYear: '2026-27', account: 'Active', deviceBound: false, boundDeviceName: null },
-    { id: 401, name: 'Suresh Patil', usn: '01EE101', department: 'Electrical & Electronics Engineering', semester: 5, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: true, boundDeviceName: 'Galaxy A54' },
-    { id: 402, name: 'Divya K', usn: '01EE102', department: 'Electrical & Electronics Engineering', semester: 5, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: false, boundDeviceName: null },
-    { id: 501, name: 'Adarsh Joshi', usn: '01ME051', department: 'Mechanical Engineering', semester: 7, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: true, boundDeviceName: 'Vivo X90' },
-    { id: 502, name: 'Ramesh Patil', usn: '01ME052', department: 'Mechanical Engineering', semester: 7, section: 'B', academicYear: '2026-27', account: 'Active', deviceBound: false, boundDeviceName: null },
-    { id: 601, name: 'Sneha Kulkarni', usn: '01CV011', department: 'Civil Engineering', semester: 5, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: true, boundDeviceName: 'Pixel 7a' },
-    { id: 602, name: 'Vijay Kumar', usn: '01CV012', department: 'Civil Engineering', semester: 5, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: false, boundDeviceName: null },
-    { id: 701, name: 'Pooja Nair', usn: '01DS001', department: 'Computer Science (Data Science)', semester: 3, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: true, boundDeviceName: 'iPhone 13' },
-    { id: 702, name: 'Karthik Hegde', usn: '01DS002', department: 'Computer Science (Data Science)', semester: 3, section: 'A', academicYear: '2026-27', account: 'Active', deviceBound: false, boundDeviceName: null },
-  ];
-
-  let filtered = allDemoStudents;
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    filtered = filtered.filter(s => s.name.toLowerCase().includes(q) || s.usn.toLowerCase().includes(q));
+    if (res.status === 401 || res.status === 403) {
+      const errJson = await res.json().catch(() => ({ message: 'Unauthorized' }));
+      throw new Error(errJson.message || 'Unauthorized access');
+    }
+  } catch (err: any) {
+    if (err?.message?.includes('Unauthorized')) {
+      throw err;
+    }
   }
 
   return {
-    students: filtered,
+    students: [],
     isLive: false,
     isHod: false,
     department: null,
@@ -239,14 +219,17 @@ export async function getDepartments(): Promise<DepartmentRecord[]> {
         return json.data;
       }
     }
-  } catch (err) {}
+    if (res.status === 401 || res.status === 403) {
+      const errJson = await res.json().catch(() => ({ message: 'Unauthorized' }));
+      throw new Error(errJson.message || 'Unauthorized access');
+    }
+  } catch (err: any) {
+    if (err?.message?.includes('Unauthorized')) {
+      throw err;
+    }
+  }
 
-  return [
-    { id: 1, name: 'Computer Science & Engineering', code: 'CSE' },
-    { id: 2, name: 'Electronics & Communication', code: 'ECE' },
-    { id: 3, name: 'Information Technology', code: 'IT' },
-    { id: 4, name: 'Mechanical Engineering', code: 'ME' },
-  ];
+  return [];
 }
 
 /**
@@ -295,16 +278,21 @@ export async function getFaculty(
         };
       }
     }
-  } catch (err) {}
+    if (res.status === 401 || res.status === 403) {
+      const errJson = await res.json().catch(() => ({ message: 'Unauthorized' }));
+      throw new Error(errJson.message || 'Unauthorized access');
+    }
+  } catch (err: any) {
+    if (err?.message?.includes('Unauthorized')) {
+      throw err;
+    }
+  }
 
   return {
-    faculty: [
-      { id: 1, name: 'Dr. Ramesh Kumar', employeeId: 'FAC001', department: 'Computer Science', designation: 'Professor & HOD', email: 'ramesh@smartattend.edu' },
-      { id: 2, name: 'Prof. Sunita Deshmukh', employeeId: 'FAC002', department: 'Computer Science', designation: 'Associate Professor', email: 'sunita@smartattend.edu' },
-      { id: 3, name: 'Dr. Vivek Sharma', employeeId: 'FAC003', department: 'Electronics', designation: 'Professor', email: 'vivek@smartattend.edu' },
-      { id: 4, name: 'Prof. Priya Nair', employeeId: 'FAC004', department: 'Information Tech', designation: 'Assistant Professor', email: 'priya@smartattend.edu' },
-    ],
+    faculty: [],
     isLive: false,
+    isHod: false,
+    department: null,
   };
 }
 

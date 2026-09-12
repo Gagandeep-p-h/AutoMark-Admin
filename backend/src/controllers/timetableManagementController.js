@@ -1,7 +1,14 @@
 import { db } from "../prisma/db.js";
 import * as xlsx from "xlsx";
 import PDFDocument from "pdfkit";
-import { getHodDepartment } from "../utils/hodDepartment.js";
+
+// Helper: Resolve HOD department ID from authoritative JWT/session
+const getHodDeptId = (req) => {
+  if (req.user?.role === "HOD" || (req.user?.departmentId && req.user?.role !== "SUPER_ADMIN")) {
+    return req.user.departmentId;
+  }
+  return null;
+};
 
 // ==============================================================================
 // CONSTANTS & SCHEDULING CONFIGURATION
@@ -204,56 +211,13 @@ export function validateSchedulingConstraints({
  */
 export const getAdminTimetable = async (req, res) => {
   try {
-    const callerEmail = req.user?.email;
-    const hodDepartment = getHodDepartment(callerEmail);
-
     let { academicYear, departmentId, semester, section } = req.query;
 
-    let targetDepartmentId = departmentId ? Number(departmentId) : null;
+    const hodDeptId = getHodDeptId(req);
+    let targetDepartmentId = hodDeptId ? Number(hodDeptId) : (departmentId ? Number(departmentId) : null);
     let departments = [];
     let faculty = [];
     let subjects = [];
-
-    try {
-      departments = await db.orm.public.Department.all();
-      const rawFaculty = await db.orm.public.Faculty.all();
-      const users = await db.orm.public.User.all();
-      subjects = await db.orm.public.Subject.all();
-
-      faculty = rawFaculty.map((f) => {
-        const u = users.find((user) => user.id === f.userId);
-        return {
-          id: f.id,
-          name: u?.name || "Faculty Member",
-          employeeId: f.employeeId,
-          departmentId: f.departmentId,
-        };
-      });
-    } catch (dbErr) {
-      // Fallback departments & faculty if DB is offline
-      departments = [
-        { id: 1, name: "Computer Science and Engineering", code: "CSE" },
-        { id: 2, name: "Information Science and Engineering", code: "ISE" },
-        { id: 3, name: "Electronics and Communication Engineering", code: "ECE" },
-      ];
-      faculty = [
-        { id: 1, name: "Dr. Rajesh Sharma", employeeId: "FAC001", departmentId: 1 },
-        { id: 2, name: "Prof. Priya Nair", employeeId: "FAC002", departmentId: 1 },
-        { id: 3, name: "Dr. Anita Desai", employeeId: "FAC003", departmentId: 1 },
-        { id: 4, name: "Prof. Suresh Verma", employeeId: "FAC004", departmentId: 1 },
-      ];
-      subjects = [];
-    }
-
-    // HOD security locking
-    if (hodDepartment) {
-      const match = departments.find(
-        (d) => d.name.toLowerCase() === hodDepartment.toLowerCase() || d.code.toLowerCase() === hodDepartment.toLowerCase()
-      );
-      if (match) {
-        targetDepartmentId = match.id;
-      }
-    }
 
     // Default filters if not specified
     const currentYear = academicYear || "2025-2026";
@@ -449,6 +413,14 @@ export const saveAdminTimetableGrid = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "academicYear, departmentId, semester, section, and slots array are required",
+      });
+    }
+
+    const hodDeptId = getHodDeptId(req);
+    if (hodDeptId && Number(departmentId) !== Number(hodDeptId)) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You cannot modify timetables outside your authorized department.",
       });
     }
 
@@ -762,7 +734,8 @@ export const importAdminTimetable = async (req, res) => {
       const academicYear = rowData.academicyear || rowData.year || "2025-2026";
       const semester = parseInt(rowData.semester || rowData.sem || "3", 10);
       const section = (rowData.section || rowData.sec || "A").toUpperCase();
-      const departmentId = parseInt(rowData.departmentid || "1", 10);
+      const hodDeptId = getHodDeptId(req);
+      const departmentId = hodDeptId ? Number(hodDeptId) : parseInt(rowData.departmentid || "1", 10);
 
       const slot = {
         id: inMemorySlots.length + importedSlots.length + 1,
@@ -916,7 +889,15 @@ export const exportAdminTimetable = async (req, res) => {
   try {
     const { academicYear = "2025-2026", departmentId = "1", semester = "3", section = "A", format = "xlsx" } = req.query;
 
-    const deptId = Number(departmentId);
+    const hodDeptId = getHodDeptId(req);
+    if (hodDeptId && Number(departmentId) !== Number(hodDeptId)) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You cannot export timetables outside your authorized department.",
+      });
+    }
+
+    const deptId = hodDeptId ? Number(hodDeptId) : Number(departmentId);
     const sem = Number(semester);
     const sec = String(section).toUpperCase();
 
@@ -1128,7 +1109,8 @@ export const getAdminBatches = async (req, res) => {
   try {
     const { departmentId, semester, section, academicYear } = req.query;
 
-    const deptId = departmentId ? Number(departmentId) : 1;
+    const hodDeptId = getHodDeptId(req);
+    const deptId = hodDeptId ? Number(hodDeptId) : (departmentId ? Number(departmentId) : 1);
     const sem = semester ? Number(semester) : 3;
     const sec = section ? String(section).toUpperCase() : "A";
     const year = academicYear || "2025-2026";
@@ -1168,7 +1150,15 @@ export const createOrSplitBatches = async (req, res) => {
   try {
     const { departmentId, semester, section, academicYear, batchNames = ["B1", "B2", "B3"], autoSplitStudents = true } = req.body;
 
-    const deptId = Number(departmentId);
+    const hodDeptId = getHodDeptId(req);
+    if (hodDeptId && Number(departmentId) !== Number(hodDeptId)) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You cannot create or split batches outside your authorized department.",
+      });
+    }
+
+    const deptId = hodDeptId ? Number(hodDeptId) : Number(departmentId);
     const sem = Number(semester);
     const sec = String(section).toUpperCase();
     const year = academicYear || "2025-2026";
@@ -1222,6 +1212,19 @@ export const assignStudentBatch = async (req, res) => {
         success: false,
         message: "studentId and batchId are required",
       });
+    }
+
+    const hodDeptId = getHodDeptId(req);
+    if (hodDeptId) {
+      try {
+        const students = await db.orm.public.Student.where({ id: Number(studentId) }).all();
+        if (students && students.length > 0 && Number(students[0].departmentId) !== Number(hodDeptId)) {
+          return res.status(403).json({
+            success: false,
+            message: "Forbidden: You cannot assign students outside your authorized department.",
+          });
+        }
+      } catch {}
     }
 
     // In-memory assignment
