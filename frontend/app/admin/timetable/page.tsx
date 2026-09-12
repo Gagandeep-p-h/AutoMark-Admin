@@ -1249,10 +1249,14 @@ export default function TimetableManagementPage() {
         )
         const json = await res.json()
         if (isMounted && json.success) {
-          if (json.subjects) setSubjects(json.subjects)
-          if (json.faculty) setFaculty(json.faculty)
-          if (json.batches) setBatches(json.batches)
-          if (json.departments) setDepartments(json.departments)
+          const loadedSubjects = json.subjects || json.data?.subjects || []
+          const loadedFaculty = json.faculty || json.data?.faculty || []
+          const loadedBatches = json.batches || json.data?.batches || []
+          const loadedDepts = json.departments || json.data?.departments || []
+          setSubjects(loadedSubjects)
+          setFaculty(loadedFaculty)
+          setBatches(loadedBatches)
+          if (loadedDepts.length > 0) setDepartments(loadedDepts)
         }
       } catch {
         // DB fallback defaults are already set in state
@@ -1280,14 +1284,21 @@ export default function TimetableManagementPage() {
       const json = await res.json()
 
       if (json.success) {
-        setSubjects(json.subjects || [])
-        setFaculty(json.faculty || [])
-        setBatches(json.batches || [])
-        setTimetableSlots(json.slots || [])
+        const loadedSubjects = json.subjects || json.data?.subjects || []
+        const loadedFaculty = json.faculty || json.data?.faculty || []
+        const loadedBatches = json.batches || json.data?.batches || []
+        const loadedSlots = json.slots || json.data?.slots || []
+        const loadedDepts = json.departments || json.data?.departments || []
+
+        setSubjects(loadedSubjects)
+        setFaculty(loadedFaculty)
+        setBatches(loadedBatches)
+        setTimetableSlots(loadedSlots)
+        if (loadedDepts.length > 0) setDepartments(loadedDepts)
 
         // Build slot map
         const newGrid: Record<string, SlotCell> = {}
-        ;(json.slots as TimetableSlot[]).forEach((slot) => {
+        ;(loadedSlots as TimetableSlot[]).forEach((slot) => {
           const key = getSlotKey(slot.dayOfWeek, slot.startTime)
           newGrid[key] = {
             subjectId: slot.subjectId ?? null,
@@ -1301,7 +1312,7 @@ export default function TimetableManagementPage() {
 
         setGrid(newGrid)
         setLoaded(true)
-        showToast('success', `Timetable loaded: ${json.slots?.length || 0} slot(s) for ${activeYearConfig.label} (Sem ${semester}, Sec ${section}).`)
+        showToast('success', `Timetable loaded: ${loadedSlots.length} slot(s) for ${activeYearConfig.label} (Sem ${semester}, Sec ${section}).`)
       } else {
         showToast('error', json.message || 'Failed to load timetable.')
       }
@@ -1587,7 +1598,12 @@ export default function TimetableManagementPage() {
                 Timetable Management
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Design, import, and export department timetables with lab batch scheduling.
+                {activeDept ? (
+                  <span className="font-semibold text-foreground">{activeDept.name} ({activeDept.code})</span>
+                ) : (
+                  'Branch Timetable'
+                )}{' '}
+                · Design and manage branch timetables with lab batch scheduling.
               </p>
             </div>
             {loaded && (

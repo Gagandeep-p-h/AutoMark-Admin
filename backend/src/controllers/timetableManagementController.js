@@ -408,21 +408,24 @@ export const getAdminTimetable = async (req, res) => {
       return s;
     });
 
+    const responsePayload = {
+      academicYear: currentYear,
+      departmentId: currentDeptId,
+      semester: currentSem,
+      section: currentSec,
+      slots: enrichedSlots,
+      batches,
+      subjects: subjects.filter((s) => Number(s.departmentId) === Number(currentDeptId)),
+      faculty: faculty.filter((f) => Number(f.departmentId) === Number(currentDeptId)),
+      departments,
+      scheduleBlocks: SCHEDULE_BLOCKS,
+      labBlocks: VALID_LAB_BLOCKS,
+    };
+
     return res.status(200).json({
       success: true,
-      data: {
-        academicYear: currentYear,
-        departmentId: currentDeptId,
-        semester: currentSem,
-        section: currentSec,
-        slots: enrichedSlots,
-        batches,
-        subjects: subjects.filter((s) => s.departmentId === currentDeptId),
-        faculty: faculty.filter((f) => f.departmentId === currentDeptId),
-        departments,
-        scheduleBlocks: SCHEDULE_BLOCKS,
-        labBlocks: VALID_LAB_BLOCKS,
-      },
+      data: responsePayload,
+      ...responsePayload,
     });
   } catch (error) {
     console.error("Error fetching timetable:", error);

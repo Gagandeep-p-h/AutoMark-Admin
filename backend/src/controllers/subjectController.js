@@ -206,15 +206,20 @@ export const updateSubject = async (req, res) => {
     }
 
     // Update in PostgreSQL
-    const updated = await db.orm.public.Subject.update(
-      { id: Number(id) },
-      {
-        name: trimmedName,
-        code: trimmedCode,
-        credits: numCredits,
-        departmentId: deptIdToSet,
-      }
-    );
+    await db.orm.public.Subject.where({ id: Number(id) }).update({
+      name: trimmedName,
+      code: trimmedCode,
+      credits: numCredits,
+      departmentId: deptIdToSet,
+    });
+
+    const updated = {
+      id: Number(id),
+      name: trimmedName,
+      code: trimmedCode,
+      credits: numCredits,
+      departmentId: deptIdToSet,
+    };
 
     return res.status(200).json({
       success: true,
@@ -263,7 +268,7 @@ export const deleteSubject = async (req, res) => {
     }
 
     // Delete directly from PostgreSQL
-    await db.orm.public.Subject.delete({ id: Number(id) });
+    await db.orm.public.Subject.where({ id: Number(id) }).delete();
 
     return res.status(200).json({
       success: true,
