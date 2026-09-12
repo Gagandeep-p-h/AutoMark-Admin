@@ -244,12 +244,13 @@ model Notification {
 
 model TimetableSlot {
   id          Int          @id @default(autoincrement())
-  classId     Int
-  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId     Int?         // Nullable to support "N/A" / free slots where no class is assigned
+  class       Class?       @relation(fields: [classId], references: [id], onDelete: Cascade)
   dayOfWeek   DayOfWeek    // MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY
   startTime   String       // e.g., "09:00"
   endTime     String       // e.g., "10:00" or "11:00"
   isLab       Boolean      @default(false)
+  isNA        Boolean      @default(false) // Flags slots explicitly left empty/unscheduled (N/A)
   batchId     Int?
   batch       LabBatch?    @relation(fields: [batchId], references: [id], onDelete: SetNull)
   createdAt   DateTime     @default(now())

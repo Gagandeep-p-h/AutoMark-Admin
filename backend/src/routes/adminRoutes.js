@@ -20,6 +20,16 @@ import {
   exportAdminFaculty,
 } from "../controllers/adminController.js";
 
+import {
+  getAdminTimetable,
+  saveAdminTimetableGrid,
+  importAdminTimetable,
+  exportAdminTimetable,
+  getAdminBatches,
+  createOrSplitBatches,
+  assignStudentBatch,
+} from "../controllers/timetableManagementController.js";
+
 import { authenticate } from "../middleware/authMiddleware.js";
 import { authorize } from "../middleware/roleMiddleware.js";
 
@@ -126,37 +136,105 @@ router.get(
 router.get(
   "/faculty",
   authenticate,
-  authorize("ADMIN", "FACULTY", "HOD"),
+  authorize("ADMIN"),
   getAdminFaculty
 );
 
 router.post(
   "/faculty",
   authenticate,
-  authorize("ADMIN", "FACULTY", "HOD"),
+  authorize("ADMIN"),
   createAdminFaculty
 );
 
 router.get(
   "/faculty/export",
   authenticate,
-  authorize("ADMIN", "FACULTY", "HOD"),
+  authorize("ADMIN"),
   exportAdminFaculty
+);
+
+router.put(
+  "/faculty/:id",
+  authenticate,
+  authorize("ADMIN"),
+  updateAdminFaculty
 );
 
 router.patch(
   "/faculty/:id",
   authenticate,
-  authorize("ADMIN", "FACULTY", "HOD"),
+  authorize("ADMIN"),
   updateAdminFaculty
 );
 
 router.delete(
   "/faculty/:id",
   authenticate,
-  authorize("ADMIN", "FACULTY", "HOD"),
+  authorize("ADMIN"),
   deleteAdminFaculty
 );
 
+// ─── Timetable Management Routes ─────────────────────────────────────────────
+// GET /api/admin/timetable  — query by academicYear, departmentId, semester, section
+router.get(
+  "/timetable",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  getAdminTimetable
+);
+
+// POST /api/admin/timetable/grid  — bulk upsert grid slots from the web UI
+router.post(
+  "/timetable/grid",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  saveAdminTimetableGrid
+);
+
+// POST /api/admin/timetable/import  — parse uploaded Excel/CSV via multer
+router.post(
+  "/timetable/import",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  upload.single("file"),
+  importAdminTimetable
+);
+
+// GET /api/admin/timetable/export  — download as .xlsx or .pdf
+router.get(
+  "/timetable/export",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  exportAdminTimetable
+);
+
+// ─── Lab Batch Management Routes ──────────────────────────────────────────────
+// GET /api/admin/batches  — list batches for a dept/sem/section
+router.get(
+  "/batches",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  getAdminBatches
+);
+
+// POST /api/admin/batches  — create or split section into B1, B2, B3
+router.post(
+  "/batches",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  createOrSplitBatches
+);
+
+// POST /api/admin/batches/assign  — assign a single student to a batch
+router.post(
+  "/batches/assign",
+  authenticate,
+  authorize("ADMIN", "FACULTY", "HOD"),
+  assignStudentBatch
+);
+
 export default router;
+
+
 

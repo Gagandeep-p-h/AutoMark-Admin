@@ -32,12 +32,20 @@
       "model": "Faculty",
       "namespace": "public"
     },
+    "labBatch": {
+      "model": "LabBatch",
+      "namespace": "public"
+    },
     "notification": {
       "model": "Notification",
       "namespace": "public"
     },
     "student": {
       "model": "Student",
+      "namespace": "public"
+    },
+    "studentBatch": {
+      "model": "StudentBatch",
       "namespace": "public"
     },
     "studentDevice": {
@@ -50,6 +58,10 @@
     },
     "timetable": {
       "model": "Timetable",
+      "namespace": "public"
+    },
+    "timetableSlot": {
+      "model": "TimetableSlot",
       "namespace": "public"
     },
     "user": {
@@ -88,6 +100,56 @@
               {
                 "name": "LATE",
                 "value": "LATE"
+              }
+            ]
+          },
+          "DayOfWeek": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "MONDAY",
+                "value": "MONDAY"
+              },
+              {
+                "name": "TUESDAY",
+                "value": "TUESDAY"
+              },
+              {
+                "name": "WEDNESDAY",
+                "value": "WEDNESDAY"
+              },
+              {
+                "name": "THURSDAY",
+                "value": "THURSDAY"
+              },
+              {
+                "name": "FRIDAY",
+                "value": "FRIDAY"
+              },
+              {
+                "name": "SATURDAY",
+                "value": "SATURDAY"
+              }
+            ]
+          },
+          "Designation": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "HOD",
+                "value": "HOD"
+              },
+              {
+                "name": "PROFESSOR",
+                "value": "PROFESSOR"
+              },
+              {
+                "name": "ASSOCIATE_PROFESSOR",
+                "value": "ASSOCIATE_PROFESSOR"
+              },
+              {
+                "name": "ASSISTANT_PROFESSOR",
+                "value": "ASSISTANT_PROFESSOR"
               }
             ]
           },
@@ -646,6 +708,21 @@
                   "model": "Timetable",
                   "namespace": "public"
                 }
+              },
+              "timetableSlots": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "classId"
+                  ]
+                },
+                "to": {
+                  "model": "TimetableSlot",
+                  "namespace": "public"
+                }
               }
             },
             "storage": {
@@ -748,6 +825,21 @@
                 },
                 "to": {
                   "model": "Faculty",
+                  "namespace": "public"
+                }
+              },
+              "labBatches": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "departmentId"
+                  ]
+                },
+                "to": {
+                  "model": "LabBatch",
                   "namespace": "public"
                 }
               },
@@ -903,10 +995,16 @@
                 }
               },
               "designation": {
-                "nullable": true,
+                "nullable": false,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "Designation",
+                  "namespaceId": "public",
+                  "plane": "domain"
                 }
               },
               "employeeId": {
@@ -1011,6 +1109,143 @@
               },
               "namespaceId": "public",
               "table": "faculty"
+            }
+          },
+          "LabBatch": {
+            "fields": {
+              "academicYear": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              },
+              "departmentId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "name": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "section": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "semester": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "updatedAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "department": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "departmentId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Department",
+                  "namespace": "public"
+                }
+              },
+              "students": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "batchId"
+                  ]
+                },
+                "to": {
+                  "model": "StudentBatch",
+                  "namespace": "public"
+                }
+              },
+              "timetableSlots": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "batchId"
+                  ]
+                },
+                "to": {
+                  "model": "TimetableSlot",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "academicYear": {
+                  "column": "academicYear"
+                },
+                "createdAt": {
+                  "column": "createdAt"
+                },
+                "departmentId": {
+                  "column": "departmentId"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "name": {
+                  "column": "name"
+                },
+                "section": {
+                  "column": "section"
+                },
+                "semester": {
+                  "column": "semester"
+                },
+                "updatedAt": {
+                  "column": "updatedAt"
+                }
+              },
+              "namespaceId": "public",
+              "table": "labBatch"
             }
           },
           "Notification": {
@@ -1244,6 +1479,21 @@
                   "namespace": "public"
                 }
               },
+              "studentBatches": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "studentId"
+                  ]
+                },
+                "to": {
+                  "model": "StudentBatch",
+                  "namespace": "public"
+                }
+              },
               "user": {
                 "cardinality": "N:1",
                 "on": {
@@ -1295,6 +1545,78 @@
               },
               "namespaceId": "public",
               "table": "student"
+            }
+          },
+          "StudentBatch": {
+            "fields": {
+              "batchId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "studentId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "batch": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "batchId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "LabBatch",
+                  "namespace": "public"
+                }
+              },
+              "student": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "studentId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Student",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "batchId": {
+                  "column": "batchId"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "studentId": {
+                  "column": "studentId"
+                }
+              },
+              "namespaceId": "public",
+              "table": "studentBatch"
             }
           },
           "StudentDevice": {
@@ -1601,6 +1923,144 @@
               },
               "namespaceId": "public",
               "table": "timetable"
+            }
+          },
+          "TimetableSlot": {
+            "fields": {
+              "batchId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "classId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              },
+              "dayOfWeek": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "DayOfWeek",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
+              "endTime": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "isLab": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "startTime": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "updatedAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "batch": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "batchId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "LabBatch",
+                  "namespace": "public"
+                }
+              },
+              "class": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "classId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Class",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "batchId": {
+                  "column": "batchId"
+                },
+                "classId": {
+                  "column": "classId"
+                },
+                "createdAt": {
+                  "column": "createdAt"
+                },
+                "dayOfWeek": {
+                  "column": "dayOfWeek"
+                },
+                "endTime": {
+                  "column": "endTime"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "isLab": {
+                  "column": "isLab"
+                },
+                "startTime": {
+                  "column": "startTime"
+                },
+                "updatedAt": {
+                  "column": "updatedAt"
+                }
+              },
+              "namespaceId": "public",
+              "table": "timetableSlot"
             }
           },
           "User": {
@@ -2369,6 +2829,13 @@
               "uniques": []
             },
             "faculty": {
+              "checks": [
+                {
+                  "expression": "\"designation\" IN ('HOD', 'PROFESSOR', 'ASSOCIATE_PROFESSOR', 'ASSISTANT_PROFESSOR')",
+                  "name": "faculty_designation_check_77b7741f",
+                  "prefix": "faculty_designation_check"
+                }
+              ],
               "columns": {
                 "createdAt": {
                   "codecId": "pg/timestamptz-string@1",
@@ -2386,8 +2853,18 @@
                 },
                 "designation": {
                   "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "ASSISTANT_PROFESSOR"
+                  },
                   "nativeType": "text",
-                  "nullable": true
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "Designation",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
                 },
                 "employeeId": {
                   "codecId": "pg/text@1",
@@ -2475,6 +2952,92 @@
                   ]
                 }
               ]
+            },
+            "labBatch": {
+              "columns": {
+                "academicYear": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "createdAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
+                "departmentId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "expression": "autoincrement()",
+                    "kind": "function"
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "name": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "section": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "semester": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "updatedAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "source": {
+                    "columns": [
+                      "departmentId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "labBatch"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "department"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "departmentId"
+                  ],
+                  "name": "labBatch_departmentId_idx_8e261ed8",
+                  "prefix": "labBatch_departmentId_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
             },
             "notification": {
               "columns": {
@@ -2683,6 +3246,87 @@
                   ]
                 }
               ]
+            },
+            "studentBatch": {
+              "columns": {
+                "batchId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "expression": "autoincrement()",
+                    "kind": "function"
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "studentId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "source": {
+                    "columns": [
+                      "studentId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "studentBatch"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "student"
+                  }
+                },
+                {
+                  "source": {
+                    "columns": [
+                      "batchId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "studentBatch"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "labBatch"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "batchId"
+                  ],
+                  "name": "studentBatch_batchId_idx_84d4b0b9",
+                  "prefix": "studentBatch_batchId_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "studentId"
+                  ],
+                  "name": "studentBatch_studentId_idx_bf255322",
+                  "prefix": "studentBatch_studentId_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
             },
             "studentDevice": {
               "columns": {
@@ -2943,6 +3587,138 @@
               },
               "uniques": []
             },
+            "timetableSlot": {
+              "checks": [
+                {
+                  "expression": "\"dayOfWeek\" IN ('MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY')",
+                  "name": "timetableSlot_dayOfWeek_check_8d36f140",
+                  "prefix": "timetableSlot_dayOfWeek_check"
+                }
+              ],
+              "columns": {
+                "batchId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": true
+                },
+                "classId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "createdAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
+                "dayOfWeek": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "DayOfWeek",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
+                "endTime": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "expression": "autoincrement()",
+                    "kind": "function"
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "isLab": {
+                  "codecId": "pg/bool@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": false
+                  },
+                  "nativeType": "bool",
+                  "nullable": false
+                },
+                "startTime": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "updatedAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "source": {
+                    "columns": [
+                      "classId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "timetableSlot"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "class"
+                  }
+                },
+                {
+                  "source": {
+                    "columns": [
+                      "batchId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "timetableSlot"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "labBatch"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "batchId"
+                  ],
+                  "name": "timetableSlot_batchId_idx_84d4b0b9",
+                  "prefix": "timetableSlot_batchId_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "classId"
+                  ],
+                  "name": "timetableSlot_classId_idx_0089e5e7",
+                  "prefix": "timetableSlot_classId_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
             "user": {
               "checks": [
                 {
@@ -3043,6 +3819,26 @@
                 "LATE"
               ]
             },
+            "DayOfWeek": {
+              "kind": "valueSet",
+              "values": [
+                "MONDAY",
+                "TUESDAY",
+                "WEDNESDAY",
+                "THURSDAY",
+                "FRIDAY",
+                "SATURDAY"
+              ]
+            },
+            "Designation": {
+              "kind": "valueSet",
+              "values": [
+                "HOD",
+                "PROFESSOR",
+                "ASSOCIATE_PROFESSOR",
+                "ASSISTANT_PROFESSOR"
+              ]
+            },
             "UserRole": {
               "kind": "valueSet",
               "values": [
@@ -3057,10 +3853,10 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "afbc83bca0d878e7fb051d1ef3f5d23d84dae3a9b2d3acec31b8c82a2b22911f"
+    "storageHash": "d046391aea7eedba24a9e78451ec019679a5440967588d16d9b149a43c128097"
   },
   "execution": {
-    "executionHash": "b016bb1982981c5e0232d7ebb78cd7ccd2f0855e0b56c9c9b8ea1dd124a0ecc2",
+    "executionHash": "8835ff5c1e3848be47e5a935b05036af6dc8d0af12df9b77e5c7c13cf21e0592",
     "mutations": {
       "defaults": [
         {
@@ -3150,6 +3946,21 @@
           "ref": {
             "column": "updatedAt",
             "namespace": "public",
+            "table": "labBatch"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "timestampNow",
+            "kind": "generator"
+          },
+          "onUpdate": {
+            "id": "timestampNow",
+            "kind": "generator"
+          },
+          "ref": {
+            "column": "updatedAt",
+            "namespace": "public",
             "table": "notification"
           }
         },
@@ -3211,6 +4022,21 @@
             "column": "updatedAt",
             "namespace": "public",
             "table": "timetable"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "timestampNow",
+            "kind": "generator"
+          },
+          "onUpdate": {
+            "id": "timestampNow",
+            "kind": "generator"
+          },
+          "ref": {
+            "column": "updatedAt",
+            "namespace": "public",
+            "table": "timetableSlot"
           }
         },
         {

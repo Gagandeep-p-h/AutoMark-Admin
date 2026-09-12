@@ -13,10 +13,7 @@ import {
   Search,
   LogOut,
   ChevronDown,
-  Shield,
-  Activity,
-  FileText,
-  Smartphone
+  Shield
 } from 'lucide-react'
 
 // Common UI Components
@@ -99,10 +96,7 @@ const SIDEBAR_ITEMS = [
   { label: 'Overview', icon: LayoutDashboard, href: '/admin/dashboard' },
   { label: 'Students', icon: GraduationCap, href: '/admin/students' },
   { label: 'Faculty', icon: Users, href: '/admin/faculty' },
-  { label: 'Live Attendance', icon: Activity, href: '/admin/attendance' },
   { label: 'Timetable', icon: Calendar, href: '/admin/timetable' },
-  { label: 'Devices', icon: Smartphone, href: '/admin/devices' },
-  { label: 'Reports', icon: FileText, href: '/admin/reports' },
   { label: 'Settings', icon: Settings, href: '/admin/settings' },
 ]
 

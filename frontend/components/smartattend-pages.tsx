@@ -6,14 +6,11 @@ import {
   GraduationCap,
   Users,
   ClipboardList,
-  SlidersHorizontal,
-  BarChart3,
   UserCog,
   Settings,
   ArrowRight,
   Shield,
   Search,
-  Filter,
   Plus,
   MoreVertical,
   Edit2,
@@ -156,8 +153,6 @@ const quickActions = [
   { title: 'Student Management', href: '/admin/students', icon: GraduationCap, desc: 'Manage student records' },
   { title: 'Faculty Management', href: '/admin/faculty', icon: Users, desc: 'Manage faculty profiles' },
   { title: 'Timetable Management', href: '/admin/timetable', icon: ClipboardList, desc: 'Plan and manage classes' },
-  { title: 'Attendance Overview', href: '/admin/reports', icon: SlidersHorizontal, desc: 'View attendance data' },
-  { title: 'Reports & Analytics', href: '/admin/reports', icon: BarChart3, desc: 'View institutional reports' },
   { title: 'Users & Roles', href: '/admin/users', icon: UserCog, desc: 'Manage system users' },
   { title: 'Audit Logs', href: '/admin/audit-logs', icon: ClipboardList, desc: 'Track admin activity' },
   { title: 'System Settings', href: '/admin/settings', icon: Settings, desc: 'Configure your console' },
@@ -2160,7 +2155,6 @@ export function StudentsPage() {
 // ─── Faculty Page ─────────────────────────────────────────────────────────────
 export function FacultyPage() {
   const [query, setQuery] = useState('')
-  const [deptFilter, setDeptFilter] = useState('ALL')
   const [faculty, setFaculty] = useState<FacultyRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [isLive, setIsLive] = useState(false)
@@ -2222,18 +2216,6 @@ export function FacultyPage() {
   } | null>(null)
   const [copiedPassword, setCopiedPassword] = useState(false)
 
-  const FILTER_OPTIONS = [
-    'All Departments',
-    'CSE',
-    'AIML',
-    'ECE',
-    'EEE',
-    'MECH',
-    'CIVIL',
-    'CSE-DS',
-    'DEAN',
-  ]
-
   const DEPT_OPTIONS = [
     { code: 'CSE', name: 'Computer Science and Engineering' },
     { code: 'AIML', name: 'Artificial Intelligence and Machine Learning' },
@@ -2255,12 +2237,10 @@ export function FacultyPage() {
     'Dean R&D',
   ]
 
-  const fetchFacultyList = async (activeDept = deptFilter) => {
+  const fetchFacultyList = async () => {
     setLoading(true)
     try {
       const res = await getFaculty(undefined, {
-        department: activeDept !== 'ALL' && activeDept !== 'DEAN' ? activeDept : undefined,
-        filter: activeDept === 'DEAN' ? 'DEAN' : undefined,
         search: query || undefined,
       })
       setFaculty(res.faculty)
@@ -2278,8 +2258,8 @@ export function FacultyPage() {
   }
 
   useEffect(() => {
-    fetchFacultyList(deptFilter)
-  }, [deptFilter])
+    fetchFacultyList()
+  }, [])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -2294,25 +2274,16 @@ export function FacultyPage() {
   const filtered = useMemo(() => {
     return faculty.filter((f) => {
       const q = query.trim().toLowerCase()
-      const matchesSearch =
-        !q ||
+      if (!q) return true
+      return (
         f.name.toLowerCase().includes(q) ||
         f.employeeId.toLowerCase().includes(q) ||
         (f.department && f.department.toLowerCase().includes(q)) ||
         (f.departmentCode && f.departmentCode.toLowerCase().includes(q)) ||
         (f.designation && f.designation.toLowerCase().includes(q))
-
-      const matchesDept =
-        deptFilter === 'ALL'
-          ? true
-          : deptFilter === 'DEAN'
-          ? Boolean(f.designation && f.designation.toLowerCase().includes('dean'))
-          : (f.departmentCode && f.departmentCode.toUpperCase() === deptFilter.toUpperCase()) ||
-            (f.department && f.department.toLowerCase().includes(deptFilter.toLowerCase()))
-
-      return matchesSearch && matchesDept
+      )
     })
-  }, [faculty, query, deptFilter])
+  }, [faculty, query])
 
   // Export handler
   const handleExport = async (format: 'pdf' | 'xls' | 'xlsx') => {
@@ -2321,8 +2292,7 @@ export function FacultyPage() {
       setShowExportDropdown(false)
       await downloadFacultyExport({
         format,
-        department: deptFilter !== 'ALL' && deptFilter !== 'DEAN' ? deptFilter : (hodDepartment || undefined),
-        filter: deptFilter === 'DEAN' ? 'DEAN' : undefined,
+        department: hodDepartment || undefined,
         search: query || undefined,
       })
     } catch (err: any) {
@@ -2568,10 +2538,10 @@ export function FacultyPage() {
 
           {/* Table Container */}
           <div className="rounded-xl border border-border bg-card shadow-sm">
-            {/* Toolbar: Search + Filter */}
-            <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Toolbar: Search */}
+            <div className="p-4 border-b border-border flex items-center justify-between gap-4">
               {/* Search Bar */}
-              <div className="relative w-full sm:w-80">
+              <div className="relative w-full max-w-md">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <input
                   type="text"
@@ -2580,34 +2550,6 @@ export function FacultyPage() {
                   onChange={(e) => setQuery(e.target.value)}
                   className="h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-4 text-sm outline-none focus:ring-1 focus:ring-ring"
                 />
-              </div>
-
-              {/* Department & DEAN Filter Dropdown */}
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <label className="text-xs font-medium text-muted-foreground">Filter:</label>
-                <select
-                  value={deptFilter}
-                  disabled={isHod}
-                  onChange={(e) => setDeptFilter(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isHod && hodDepartment ? (
-                    <>
-                      <option value={hodDepartment}>{hodDepartment} Department (Locked)</option>
-                      <option value="DEAN">DEAN (in {hodDepartment})</option>
-                    </>
-                  ) : (
-                    FILTER_OPTIONS.map((opt) => (
-                      <option
-                        key={opt}
-                        value={opt === 'All Departments' ? 'ALL' : opt}
-                      >
-                        {opt === 'DEAN' ? '★ DEAN' : opt}
-                      </option>
-                    ))
-                  )}
-                </select>
               </div>
             </div>
 
