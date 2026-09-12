@@ -33,7 +33,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'4c1b6b8da424e4dcc88a58b58a0d87afc03c69035f9aa3d04c8818bb295bb219'>;
+  StorageHashBase<'d046391aea7eedba24a9e78451ec019679a5440967588d16d9b149a43c128097'>;
 export type ExecutionHash =
   ExecutionHashBase<'8835ff5c1e3848be47e5a935b05036af6dc8d0af12df9b77e5c7c13cf21e0592'>;
 export type ProfileHash =
@@ -299,7 +299,7 @@ export type FieldOutputTypes = {
       readonly userId: CodecTypes['pg/int4@1']['output'];
       readonly employeeId: CodecTypes['pg/text@1']['output'];
       readonly departmentId: CodecTypes['pg/int4@1']['output'];
-      readonly designation: CodecTypes['pg/text@1']['output'] | null;
+      readonly designation: 'HOD' | 'PROFESSOR' | 'ASSOCIATE_PROFESSOR' | 'ASSISTANT_PROFESSOR';
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
     };
@@ -449,7 +449,7 @@ export type FieldInputTypes = {
       readonly userId: CodecTypes['pg/int4@1']['input'];
       readonly employeeId: CodecTypes['pg/text@1']['input'];
       readonly departmentId: CodecTypes['pg/int4@1']['input'];
-      readonly designation: CodecTypes['pg/text@1']['input'] | null;
+      readonly designation: 'HOD' | 'PROFESSOR' | 'ASSOCIATE_PROFESSOR' | 'ASSISTANT_PROFESSOR';
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
     };
@@ -597,7 +597,7 @@ export type StorageColumnTypes = {
     readonly faculty: {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly departmentId: CodecTypes['pg/int4@1']['output'];
-      readonly designation: CodecTypes['pg/text@1']['output'] | null;
+      readonly designation: 'HOD' | 'PROFESSOR' | 'ASSOCIATE_PROFESSOR' | 'ASSISTANT_PROFESSOR';
       readonly employeeId: CodecTypes['pg/text@1']['output'];
       readonly id: CodecTypes['pg/int4@1']['output'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -747,7 +747,7 @@ export type StorageColumnInputTypes = {
     readonly faculty: {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly departmentId: CodecTypes['pg/int4@1']['input'];
-      readonly designation: CodecTypes['pg/text@1']['input'] | null;
+      readonly designation: 'HOD' | 'PROFESSOR' | 'ASSOCIATE_PROFESSOR' | 'ASSISTANT_PROFESSOR';
       readonly employeeId: CodecTypes['pg/text@1']['input'];
       readonly id: CodecTypes['pg/int4@1']['input'];
       readonly updatedAt: CodecTypes['pg/timestamptz-string@1']['input'];
@@ -1343,7 +1343,11 @@ type ContractBase = Omit<
                 readonly designation: {
                   readonly nativeType: 'text';
                   readonly codecId: 'pg/text@1';
-                  readonly nullable: true;
+                  readonly nullable: false;
+                  readonly default: {
+                    readonly kind: 'literal';
+                    readonly value: DefaultLiteralValue<'pg/text@1', 'ASSISTANT_PROFESSOR'>;
+                  };
                 };
                 readonly createdAt: {
                   readonly nativeType: 'timestamptz';
@@ -2091,6 +2095,15 @@ type ContractBase = Omit<
                 'SATURDAY',
               ];
             };
+            readonly Designation: {
+              readonly kind: 'valueSet';
+              readonly values: readonly [
+                'HOD',
+                'PROFESSOR',
+                'ASSOCIATE_PROFESSOR',
+                'ASSISTANT_PROFESSOR',
+              ];
+            };
             readonly UserRole: {
               readonly kind: 'valueSet';
               readonly values: readonly ['ADMIN', 'FACULTY', 'STUDENT'];
@@ -2712,7 +2725,7 @@ type ContractBase = Omit<
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
               };
               readonly designation: {
-                readonly nullable: true;
+                readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
               readonly createdAt: {
@@ -3510,6 +3523,15 @@ type ContractBase = Omit<
             readonly members: readonly [
               { readonly name: 'BLE'; readonly value: 'BLE' },
               { readonly name: 'MANUAL'; readonly value: 'MANUAL' },
+            ];
+          };
+          readonly Designation: {
+            readonly codecId: 'pg/text@1';
+            readonly members: readonly [
+              { readonly name: 'HOD'; readonly value: 'HOD' },
+              { readonly name: 'PROFESSOR'; readonly value: 'PROFESSOR' },
+              { readonly name: 'ASSOCIATE_PROFESSOR'; readonly value: 'ASSOCIATE_PROFESSOR' },
+              { readonly name: 'ASSISTANT_PROFESSOR'; readonly value: 'ASSISTANT_PROFESSOR' },
             ];
           };
           readonly DayOfWeek: {

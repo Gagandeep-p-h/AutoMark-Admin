@@ -136,35 +136,42 @@ router.get(
 router.get(
   "/faculty",
   authenticate,
-  authorize("ADMIN", "FACULTY", "HOD"),
+  authorize("ADMIN"),
   getAdminFaculty
 );
 
 router.post(
   "/faculty",
   authenticate,
-  authorize("ADMIN", "FACULTY", "HOD"),
+  authorize("ADMIN"),
   createAdminFaculty
 );
 
 router.get(
   "/faculty/export",
   authenticate,
-  authorize("ADMIN", "FACULTY", "HOD"),
+  authorize("ADMIN"),
   exportAdminFaculty
+);
+
+router.put(
+  "/faculty/:id",
+  authenticate,
+  authorize("ADMIN"),
+  updateAdminFaculty
 );
 
 router.patch(
   "/faculty/:id",
   authenticate,
-  authorize("ADMIN", "FACULTY", "HOD"),
+  authorize("ADMIN"),
   updateAdminFaculty
 );
 
 router.delete(
   "/faculty/:id",
   authenticate,
-  authorize("ADMIN", "FACULTY", "HOD"),
+  authorize("ADMIN"),
   deleteAdminFaculty
 );
 
