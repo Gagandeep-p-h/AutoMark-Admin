@@ -11,7 +11,9 @@ datasource db {
 }
 
 enum UserRole {
+  SUPER_ADMIN
   ADMIN
+  HOD
   FACULTY
   STUDENT
 }
@@ -50,10 +52,13 @@ model User {
   passwordHash  String
   role          UserRole
   isActive      Boolean        @default(true)
+  // For HOD users: the department they are assigned to administer
+  departmentId  Int?
 
   student       Student?
   faculty       Faculty?
   notifications Notification[]
+  auditLogs     AuditLog[]
 
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -282,4 +287,26 @@ model StudentBatch {
   batch     LabBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, batchId])
+}
+
+// ==============================================================================
+// Audit Logging
+// ==============================================================================
+
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  action       String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT
+  entityType   String   // Student, Faculty, Class, Timetable, User
+  entityId     Int?
+  departmentId Int?     // For department-scoped actions
+  details      String?  // JSON string of change details
+  ipAddress    String?
+
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([createdAt])
 }

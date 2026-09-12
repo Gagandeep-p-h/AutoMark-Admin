@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession, getBackendToken } from '@/lib/auth';
 
-const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000';
+const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
 
 /** PUT /api/admin/subjects/[id] — update subject */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { ReactNode } from 'react'
+import React, { ReactNode, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -12,8 +12,9 @@ import {
   Bell,
   Search,
   LogOut,
-  ChevronDown,
-  Shield
+  Shield,
+  Layers,
+  FileSpreadsheet
 } from 'lucide-react'
 
 // Common UI Components
@@ -100,19 +101,34 @@ const SIDEBAR_ITEMS = [
   { label: 'Settings', icon: Settings, href: '/admin/settings' },
 ]
 
+interface UserSession {
+  name: string
+  role: string
+  email: string
+  departmentCode?: string | null
+}
+
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+
+  const [currentUser, setCurrentUser] = useState<UserSession>({
+    name: 'Administrator',
+    role: 'ADMIN',
+    email: 'admin@smartattend.edu.in',
+  })
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/admin/login')
   }
 
-  const [backendStatus, setBackendStatus] = React.useState<'checking' | 'live' | 'offline'>('checking')
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'live' | 'offline'>('checking')
 
-  React.useEffect(() => {
+  useEffect(() => {
     let mounted = true
+
+    // Check backend health
     import('@/lib/api').then(({ checkBackendHealth }) => {
       checkBackendHealth().then(res => {
         if (mounted) {
@@ -120,8 +136,49 @@ export function AdminShell({ children }: { children: ReactNode }) {
         }
       })
     })
+
+    // Fetch user info from session
+    fetch('/api/auth/me')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (mounted && data?.user) {
+          setCurrentUser({
+            name: data.user.name || 'Administrator',
+            role: data.user.role || 'ADMIN',
+            email: data.user.email || '',
+            departmentCode: data.user.departmentCode,
+          })
+        }
+      })
+      .catch(() => {})
+
     return () => { mounted = false }
   }, [])
+
+  const getInitials = (name: string) => {
+    if (!name) return 'SA'
+    const parts = name.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+    }
+    return name.substring(0, 2).toUpperCase()
+  }
+
+  const formatRole = (role: string) => {
+    if (!role) return 'Administrator'
+    switch (role.toUpperCase()) {
+      case 'SUPER_ADMIN':
+        return 'Super Admin'
+      case 'HOD':
+        return currentUser.departmentCode ? `HOD (${currentUser.departmentCode})` : 'HOD'
+      case 'FACULTY':
+        return 'Faculty'
+      case 'ADMIN':
+        return 'Administrator'
+      default:
+        return role
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -177,14 +234,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
           >
             <div className="flex items-center gap-3">
               <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
-                AK
+                {getInitials(currentUser.name)}
               </div>
-              <div>
-                <p className="text-sm font-medium text-foreground leading-none">Anita K.</p>
-                <p className="text-xs text-muted-foreground mt-1">Super Admin</p>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground leading-none truncate">{currentUser.name}</p>
+                <p className="text-xs text-muted-foreground mt-1 truncate">{formatRole(currentUser.role)}</p>
               </div>
             </div>
-            <LogOut className="size-4 text-muted-foreground" />
+            <LogOut className="size-4 text-muted-foreground shrink-0" />
           </button>
         </div>
       </aside>
@@ -205,12 +262,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
             {backendStatus === 'live' ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
                 <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Backend API Live
+                Connected
               </span>
             ) : backendStatus === 'offline' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
-                <span className="size-1.5 rounded-full bg-amber-500" />
-                Demo Mode (API Offline)
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+                <span className="size-1.5 rounded-full bg-muted-foreground" />
+                Offline
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
@@ -242,8 +299,7 @@ export function AdminContent({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
-// Re-export constants for compatibility with existing files temporarily if they need it,
-// though we aim to remove them all.
+// Re-export constants for compatibility with existing files temporarily if they need it
 export const C = {
   navy: '#09090B',
   blue: '#18181B',

@@ -1,6 +1,6 @@
 import { getSession } from '@/lib/auth';
 
-const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000';
+const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
 
 export async function GET(req: Request) {
   try {

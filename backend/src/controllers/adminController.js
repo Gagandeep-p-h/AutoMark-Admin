@@ -1,7 +1,7 @@
 import { db } from "../prisma/db.js";
 import bcrypt from "bcryptjs";
 import * as xlsx from "xlsx";
-import { getHodDepartment } from "../utils/hodDepartment.js";
+// HOD dept resolution now uses JWT claims (req.user.departmentId) set by authMiddleware
 import { parseStudentFile } from "../utils/studentFileParser.js";
 import { generatePdfTableBuffer } from "../utils/pdfGenerator.js";
 import { generateSecureTemporaryCredential } from "../utils/credentialGenerator.js";
@@ -60,24 +60,68 @@ export const getAdminDashboard = async (req, res) => {
   }
 };
 
-// Helper to match student department code/name
-const matchDepartment = (student, targetCode, departments = []) => {
+// Helper to resolve department from numeric ID or string code/name
+export const resolveDepartment = (departments, identifier) => {
+  if (!identifier || !departments || departments.length === 0) return null;
+  const num = Number(identifier);
+  if (!isNaN(num) && num > 0) {
+    const byId = departments.find((d) => d.id === num);
+    if (byId) return byId;
+  }
+  const str = String(identifier).trim().toUpperCase();
+  return (
+    departments.find(
+      (d) =>
+        String(d.code || "").toUpperCase() === str ||
+        String(d.name || "").toUpperCase() === str ||
+        String(d.id) === str
+    ) || null
+  );
+};
+
+// Helper to check if a department matches HOD's department scope
+export const isDepartmentMatch = (dept, hodDepartmentId) => {
+  if (!hodDepartmentId) return true;
+  if (!dept) return false;
+  const num = Number(hodDepartmentId);
+  if (!isNaN(num) && num > 0) {
+    return dept.id === num;
+  }
+  const str = String(hodDepartmentId).trim().toUpperCase();
+  return (
+    String(dept.code || "").toUpperCase() === str ||
+    String(dept.name || "").toUpperCase() === str ||
+    String(dept.id) === str
+  );
+};
+
+// Helper to match student department code/name/id
+export const matchDepartment = (student, targetCode, departments = []) => {
   if (!targetCode) return true;
-  const target = targetCode.trim().toUpperCase();
+
+  const numericTarget = Number(targetCode);
+  if (!isNaN(numericTarget) && numericTarget > 0 && student.departmentId) {
+    if (student.departmentId === numericTarget) return true;
+  }
+
+  const target = String(targetCode).trim().toUpperCase();
 
   // 1. Check against departments table if departmentId exists
   if (student.departmentId && departments.length > 0) {
     const dept = departments.find((d) => d.id === student.departmentId);
     if (dept) {
+      if (String(dept.id) === target) return true;
       const code = String(dept.code || "").toUpperCase();
       if (code === target) return true;
+      const name = String(dept.name || "").toUpperCase();
+      if (name === target) return true;
     }
   }
 
   // 2. Exact code match on student.departmentCode
   const sDeptCode = String(student.departmentCode || "").trim().toUpperCase();
   if (sDeptCode) {
-    return sDeptCode === target;
+    if (sDeptCode === target) return true;
   }
 
   // 3. Department name matching with strict keywords (avoid substring collisions like 'EE' in 'Engineering')
@@ -252,15 +296,16 @@ export function compareUsn(a, b) {
 
 export const getAdminStudents = async (req, res) => {
   try {
-    const callerEmail = req.user?.email;
-    const hodDepartment = getHodDepartment(callerEmail);
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    // null = SUPER_ADMIN/institution-wide; number = HOD locked to that departmentId
+    const hodDepartmentId = req.user?.departmentId ?? null;
 
     // SECURITY ENFORCEMENT:
     // If caller is an HOD, their department is strictly locked to their assigned HOD department.
     // They cannot override this by passing ?department=... in the query string.
     let targetDepartment = null;
-    if (hodDepartment) {
-      targetDepartment = hodDepartment;
+    if (hodDepartmentId) {
+      targetDepartment = hodDepartmentId;
     } else {
       // Non-HOD users (e.g. Super Admin) can optionally filter by query parameter
       targetDepartment = req.query.department || null;
@@ -355,7 +400,7 @@ export const getAdminStudents = async (req, res) => {
       data: result,
       students: result,
       total: result.length,
-      isHod: Boolean(hodDepartment),
+      isHod: Boolean(hodDepartmentId),
       department: targetDepartment,
     });
   } catch (error) {
@@ -393,13 +438,27 @@ export const createAdminStudent = async (req, res) => {
 
     let selectedDepartment = null;
 
-    const callerEmail = req.user?.email || "";
-    const hodDepartment = getHodDepartment(callerEmail);
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    // null = SUPER_ADMIN/institution-wide; number = HOD locked to that departmentId
+    const hodDepartmentId = req.user?.departmentId ?? null;
 
-    if (hodDepartment) {
-      selectedDepartment = departments.find(
-        (item) => item.code.toUpperCase() === hodDepartment.toUpperCase()
-      );
+    if (hodDepartmentId) {
+      if (departmentId && Number(departmentId) !== Number(hodDepartmentId)) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: HOD cannot create students in another department",
+        });
+      }
+      if (department) {
+        const bodyDept = resolveDepartment(departments, department);
+        if (bodyDept && bodyDept.id !== Number(hodDepartmentId)) {
+          return res.status(403).json({
+            success: false,
+            message: "Forbidden: HOD cannot create students in another department",
+          });
+        }
+      }
+      selectedDepartment = resolveDepartment(departments, hodDepartmentId);
     } else if (departmentId) {
       selectedDepartment = departments.find(
         (item) => item.id === Number(departmentId),
@@ -540,17 +599,18 @@ export const createAdminStudent = async (req, res) => {
  */
 export const importAdminStudents = async (req, res) => {
   try {
-    const callerEmail = req.user?.email;
     const callerRole = req.user?.role;
-    const hodDepartment = getHodDepartment(callerEmail);
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    // null = SUPER_ADMIN/institution-wide; number = HOD locked to that departmentId
+    const hodDepartmentId = req.user?.departmentId ?? null;
 
     // SECURITY ENFORCEMENT:
     // Department MUST be resolved from the authenticated HOD.
     // Client-supplied department parameter is ignored for HOD callers.
     let targetDepartmentCode = null;
 
-    if (hodDepartment) {
-      targetDepartmentCode = hodDepartment;
+    if (hodDepartmentId) {
+      targetDepartmentCode = hodDepartmentId;
     } else if (callerRole === "ADMIN") {
       // Super Admin fallback allows selecting or defaulting department
       targetDepartmentCode = (req.body.department || req.query.department || "CSE").trim().toUpperCase();
@@ -790,8 +850,9 @@ export const importAdminStudents = async (req, res) => {
  */
 export const assignAdminStudentDivision = async (req, res) => {
   try {
-    const callerEmail = req.user?.email;
-    const hodDepartment = getHodDepartment(callerEmail);
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    // null = SUPER_ADMIN/institution-wide; number = HOD locked to that departmentId
+    const hodDepartmentId = req.user?.departmentId ?? null;
 
     // Support both parameter names: startUsn/endUsn or fromUsn/toUsn
     const startUsn = String(req.body.startUsn ?? req.body.fromUsn ?? "").trim().toUpperCase();
@@ -841,10 +902,8 @@ export const assignAdminStudentDivision = async (req, res) => {
     // 4. Resolve target department strictly from authenticated HOD
     const departments = await db.orm.public.Department.all();
     let targetDept = null;
-    if (hodDepartment) {
-      targetDept = departments.find(
-        (d) => d.code?.toUpperCase() === hodDepartment.toUpperCase()
-      );
+    if (hodDepartmentId) {
+      targetDept = resolveDepartment(departments, hodDepartmentId);
     }
 
     // 5. Query students from database
@@ -866,9 +925,9 @@ export const assignAdminStudentDivision = async (req, res) => {
     // Fallback in local dev if DB is empty
     if (matchedStudents.length === 0 && (!allStudents || allStudents.length === 0)) {
       let fallbackTarget = [...FALLBACK_STUDENTS];
-      if (hodDepartment) {
+      if (hodDepartmentId) {
         fallbackTarget = fallbackTarget.filter((s) =>
-          matchDepartment(s, hodDepartment, departments)
+          matchDepartment(s, hodDepartmentId, departments)
         );
       }
       matchedStudents = fallbackTarget.filter((s) =>
@@ -912,8 +971,8 @@ export const assignAdminStudentDivision = async (req, res) => {
         startUsn,
         endUsn,
         division,
-        department: targetDept?.code || hodDepartment || "ALL",
-        departmentName: targetDept?.name || hodDepartment || "All Departments",
+        department: targetDept?.code || hodDepartmentId || "ALL",
+        departmentName: targetDept?.name || hodDepartmentId || "All Departments",
         affectedCount: matchedStudents.length,
         students: studentSummaries,
       });
@@ -951,7 +1010,7 @@ export const assignAdminStudentDivision = async (req, res) => {
       division,
       startUsn,
       endUsn,
-      department: targetDept?.code || hodDepartment || "ALL",
+      department: targetDept?.code || hodDepartmentId || "ALL",
       students: studentSummaries,
     });
   } catch (error) {
@@ -970,8 +1029,9 @@ export const assignAdminStudentDivision = async (req, res) => {
  */
 export const assignAdminStudentLabBatch = async (req, res) => {
   try {
-    const callerEmail = req.user?.email;
-    const hodDepartment = getHodDepartment(callerEmail);
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    // null = SUPER_ADMIN/institution-wide; number = HOD locked to that departmentId
+    const hodDepartmentId = req.user?.departmentId ?? null;
 
     const startUsn = String(req.body.startUsn ?? req.body.fromUsn ?? "").trim().toUpperCase();
     const endUsn = String(req.body.endUsn ?? req.body.toUsn ?? "").trim().toUpperCase();
@@ -1029,10 +1089,8 @@ export const assignAdminStudentLabBatch = async (req, res) => {
     // 4. Resolve target department strictly from authenticated HOD
     const departments = await db.orm.public.Department.all();
     let targetDept = null;
-    if (hodDepartment) {
-      targetDept = departments.find(
-        (d) => d.code?.toUpperCase() === hodDepartment.toUpperCase()
-      );
+    if (hodDepartmentId) {
+      targetDept = resolveDepartment(departments, hodDepartmentId);
     }
 
     // 5. Query students from database
@@ -1054,9 +1112,9 @@ export const assignAdminStudentLabBatch = async (req, res) => {
     // Fallback in local dev if DB is empty
     if (matchedStudents.length === 0 && (!allStudents || allStudents.length === 0)) {
       let fallbackTarget = [...FALLBACK_STUDENTS];
-      if (hodDepartment) {
+      if (hodDepartmentId) {
         fallbackTarget = fallbackTarget.filter((s) =>
-          matchDepartment(s, hodDepartment, departments)
+          matchDepartment(s, hodDepartmentId, departments)
         );
       }
       matchedStudents = fallbackTarget.filter((s) =>
@@ -1142,8 +1200,8 @@ export const assignAdminStudentLabBatch = async (req, res) => {
         endUsn,
         labBatch,
         division: targetDivision,
-        department: targetDept?.code || hodDepartment || "ALL",
-        departmentName: targetDept?.name || hodDepartment || "All Departments",
+        department: targetDept?.code || hodDepartmentId || "ALL",
+        departmentName: targetDept?.name || hodDepartmentId || "All Departments",
         affectedCount: matchedStudents.length,
         alreadyAssignedCount,
         reassignedCount,
@@ -1193,7 +1251,7 @@ export const assignAdminStudentLabBatch = async (req, res) => {
       division: targetDivision,
       startUsn,
       endUsn,
-      department: targetDept?.code || hodDepartment || "ALL",
+      department: targetDept?.code || hodDepartmentId || "ALL",
       students: studentSummaries,
     });
   } catch (error) {
@@ -1225,8 +1283,9 @@ export const updateAdminStudent = async (req, res) => {
     }
 
     // 1. Verify caller's HOD department scope
-    const callerEmail = req.user?.email || "";
-    const hodDepartment = getHodDepartment(callerEmail);
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    // null = SUPER_ADMIN/institution-wide; number = HOD locked to that departmentId
+    const hodDepartmentId = req.user?.departmentId ?? null;
 
     const students = await db.orm.public.Student.where({ id: studentId }).all();
     if (!students || students.length === 0) {
@@ -1237,7 +1296,7 @@ export const updateAdminStudent = async (req, res) => {
     const departments = await db.orm.public.Department.all();
     const studentDept = departments.find((d) => d.id === student.departmentId);
 
-    if (hodDepartment && (!studentDept || studentDept.code.toUpperCase() !== hodDepartment.toUpperCase())) {
+    if (hodDepartmentId && (!studentDept || !isDepartmentMatch(studentDept, hodDepartmentId))) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: You cannot modify students outside your department.",
@@ -1317,8 +1376,9 @@ export const getAdminStudentDevice = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid student ID" });
     }
 
-    const callerEmail = req.user?.email || "";
-    const hodDepartment = getHodDepartment(callerEmail);
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    // null = SUPER_ADMIN/institution-wide; number = HOD locked to that departmentId
+    const hodDepartmentId = req.user?.departmentId ?? null;
 
     const students = await db.orm.public.Student.where({ id: studentId }).all();
     if (!students || students.length === 0) {
@@ -1329,7 +1389,7 @@ export const getAdminStudentDevice = async (req, res) => {
     const departments = await db.orm.public.Department.all();
     const studentDept = departments.find((d) => d.id === student.departmentId);
 
-    if (hodDepartment && (!studentDept || studentDept.code.toUpperCase() !== hodDepartment.toUpperCase())) {
+    if (hodDepartmentId && (!studentDept || !isDepartmentMatch(studentDept, hodDepartmentId))) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: You cannot access device information for students outside your department.",
@@ -1381,8 +1441,9 @@ export const resetAdminStudentDevice = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid student ID" });
     }
 
-    const callerEmail = req.user?.email || "";
-    const hodDepartment = getHodDepartment(callerEmail);
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    // null = SUPER_ADMIN/institution-wide; number = HOD locked to that departmentId
+    const hodDepartmentId = req.user?.departmentId ?? null;
 
     const students = await db.orm.public.Student.where({ id: studentId }).all();
     if (!students || students.length === 0) {
@@ -1393,7 +1454,7 @@ export const resetAdminStudentDevice = async (req, res) => {
     const departments = await db.orm.public.Department.all();
     const studentDept = departments.find((d) => d.id === student.departmentId);
 
-    if (hodDepartment && (!studentDept || studentDept.code.toUpperCase() !== hodDepartment.toUpperCase())) {
+    if (hodDepartmentId && (!studentDept || !isDepartmentMatch(studentDept, hodDepartmentId))) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: You cannot reset device binding for students outside your department.",
@@ -1430,8 +1491,9 @@ export const deleteAdminStudent = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid student ID" });
     }
 
-    const callerEmail = req.user?.email || "";
-    const hodDepartment = getHodDepartment(callerEmail);
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    // null = SUPER_ADMIN/institution-wide; number = HOD locked to that departmentId
+    const hodDepartmentId = req.user?.departmentId ?? null;
 
     const students = await db.orm.public.Student.where({ id: studentId }).all();
     if (!students || students.length === 0) {
@@ -1442,7 +1504,7 @@ export const deleteAdminStudent = async (req, res) => {
     const departments = await db.orm.public.Department.all();
     const studentDept = departments.find((d) => d.id === student.departmentId);
 
-    if (hodDepartment && (!studentDept || studentDept.code.toUpperCase() !== hodDepartment.toUpperCase())) {
+    if (hodDepartmentId && (!studentDept || !isDepartmentMatch(studentDept, hodDepartmentId))) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: You cannot delete students outside your department.",
@@ -1526,10 +1588,10 @@ export function normalizeFacultyDesignation(value) {
  */
 export const getAdminFaculty = async (req, res) => {
   try {
-    const callerEmail = req.user?.email;
-    const isAdmin = req.user?.role === "ADMIN";
-    const hodDepartment = getHodDepartment(callerEmail);
-    const isHod = Boolean(hodDepartment);
+    const isAdmin = req.user?.role === "ADMIN" || req.user?.role === "SUPER_ADMIN";
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    const hodDepartmentId = req.user?.departmentId ?? null;
+    const isHod = Boolean(hodDepartmentId);
 
     if (!isAdmin && !isHod) {
       return res.status(403).json({
@@ -1546,8 +1608,8 @@ export const getAdminFaculty = async (req, res) => {
 
     let targetDepartment = null;
     if (!isAll) {
-      if (hodDepartment) {
-        targetDepartment = hodDepartment;
+      if (hodDepartmentId) {
+        targetDepartment = hodDepartmentId;
       } else {
         const queryDept = (req.query.department || "").trim().toUpperCase();
         if (queryDept && queryDept !== "ALL" && queryDept !== "DEAN" && queryDept !== "ALL DEPARTMENTS") {
@@ -1633,7 +1695,7 @@ export const getAdminFaculty = async (req, res) => {
       data: result,
       faculty: result,
       total: result.length,
-      isHod: Boolean(hodDepartment),
+      isHod: Boolean(hodDepartmentId),
       department: targetDepartment,
       crossDepartment: isAll,
     });
@@ -1653,10 +1715,10 @@ export const getAdminFaculty = async (req, res) => {
  */
 export const createAdminFaculty = async (req, res) => {
   try {
-    const callerEmail = req.user?.email;
-    const isAdmin = req.user?.role === "ADMIN";
-    const hodDepartment = getHodDepartment(callerEmail);
-    const isHod = Boolean(hodDepartment);
+    const isAdmin = req.user?.role === "ADMIN" || req.user?.role === "SUPER_ADMIN";
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    const hodDepartmentId = req.user?.departmentId ?? null;
+    const isHod = Boolean(hodDepartmentId);
 
     if (!isAdmin && !isHod) {
       return res.status(403).json({
@@ -1665,7 +1727,15 @@ export const createAdminFaculty = async (req, res) => {
       });
     }
 
-    const { name, employeeId, department, departmentId, designation, email, password } = req.body;
+    const { name, employeeId, department, departmentId, designation, email, password, role } = req.body;
+
+    // Role escalation guard: HOD cannot create SUPER_ADMIN or ADMIN accounts
+    if (hodDepartmentId && (role === "SUPER_ADMIN" || role === "ADMIN")) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: HOD cannot assign administrative roles.",
+      });
+    }
 
     // Validation of required fields
     if (!name || !employeeId) {
@@ -1687,25 +1757,37 @@ export const createAdminFaculty = async (req, res) => {
     const departments = await db.orm.public.Department.all();
     let selectedDept = null;
 
-    if (hodDepartment) {
+    if (hodDepartmentId) {
+
+      if (departmentId && Number(departmentId) !== Number(hodDepartmentId)) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: HOD cannot add faculty to another department.",
+        });
+      }
+
+      if (department) {
+        const bodyDept = resolveDepartment(departments, department);
+        if (bodyDept && bodyDept.id !== Number(hodDepartmentId)) {
+          return res.status(403).json({
+            success: false,
+            message: "Forbidden: HOD cannot add faculty to another department.",
+          });
+        }
+      }
+
       // HOD can only add faculty to their authorized department
-      selectedDept = departments.find(
-        (d) => d.code?.toUpperCase() === hodDepartment.toUpperCase()
-      );
+      selectedDept = resolveDepartment(departments, hodDepartmentId);
       if (!selectedDept) {
         return res.status(403).json({
           success: false,
-          message: `Department ${hodDepartment} not found in database`,
+          message: `Authorized HOD department not found in database`,
         });
       }
     } else if (departmentId) {
-      selectedDept = departments.find((d) => d.id === Number(departmentId));
+      selectedDept = resolveDepartment(departments, departmentId);
     } else if (department) {
-      selectedDept = departments.find(
-        (d) =>
-          d.code?.toUpperCase() === String(department).trim().toUpperCase() ||
-          d.name?.toLowerCase() === String(department).trim().toLowerCase()
-      );
+      selectedDept = resolveDepartment(departments, department);
     }
 
     if (!selectedDept) {
@@ -1835,10 +1917,10 @@ export const updateAdminFaculty = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid faculty ID" });
     }
 
-    const callerEmail = req.user?.email || "";
-    const isAdmin = req.user?.role === "ADMIN";
-    const hodDepartment = getHodDepartment(callerEmail);
-    const isHod = Boolean(hodDepartment);
+    const isAdmin = req.user?.role === "ADMIN" || req.user?.role === "SUPER_ADMIN";
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    const hodDepartmentId = req.user?.departmentId ?? null;
+    const isHod = Boolean(hodDepartmentId);
 
     if (!isAdmin && !isHod) {
       return res.status(403).json({
@@ -1857,7 +1939,7 @@ export const updateAdminFaculty = async (req, res) => {
     const currentDept = departments.find((d) => d.id === faculty.departmentId);
 
     // HOD ISOLATION: verify target faculty belongs to HOD's department
-    if (isHod && (!currentDept || currentDept.code?.toUpperCase() !== hodDepartment.toUpperCase())) {
+    if (isHod && (!currentDept || !isDepartmentMatch(currentDept, hodDepartmentId))) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: You cannot update faculty outside your authorized department.",
@@ -1868,22 +1950,10 @@ export const updateAdminFaculty = async (req, res) => {
 
     // HOD ISOLATION: An HOD MUST NOT be able to move faculty to another department.
     if (isHod && (department !== undefined || departmentId !== undefined)) {
-      const reqDeptStr = String(department || "").trim().toUpperCase();
-      const reqDeptId =
-        departmentId !== undefined && departmentId !== null && String(departmentId).trim() !== ""
-          ? Number(departmentId)
-          : null;
-
-      const targetDept = departments.find(
-        (d) =>
-          (reqDeptId !== null && !isNaN(reqDeptId) && d.id === reqDeptId) ||
-          (reqDeptStr &&
-            (d.code?.toUpperCase() === reqDeptStr ||
-              d.name?.toUpperCase() === reqDeptStr))
-      );
+      const targetDept = resolveDepartment(departments, departmentId || department);
 
       if (targetDept) {
-        if (targetDept.code?.toUpperCase() !== hodDepartment.toUpperCase()) {
+        if (!isDepartmentMatch(targetDept, hodDepartmentId)) {
           return res.status(403).json({
             success: false,
             message: "Forbidden: HODs cannot move faculty to another department.",
@@ -2046,10 +2116,10 @@ export const deleteAdminFaculty = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid faculty ID" });
     }
 
-    const callerEmail = req.user?.email || "";
-    const isAdmin = req.user?.role === "ADMIN";
-    const hodDepartment = getHodDepartment(callerEmail);
-    const isHod = Boolean(hodDepartment);
+    const isAdmin = req.user?.role === "ADMIN" || req.user?.role === "SUPER_ADMIN";
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    const hodDepartmentId = req.user?.departmentId ?? null;
+    const isHod = Boolean(hodDepartmentId);
 
     if (!isAdmin && !isHod) {
       return res.status(403).json({
@@ -2068,7 +2138,7 @@ export const deleteAdminFaculty = async (req, res) => {
     const currentDept = departments.find((d) => d.id === faculty.departmentId);
 
     // HOD ISOLATION: verify target faculty belongs to HOD's department
-    if (isHod && (!currentDept || currentDept.code?.toUpperCase() !== hodDepartment.toUpperCase())) {
+    if (isHod && (!currentDept || !isDepartmentMatch(currentDept, hodDepartmentId))) {
       return res.status(403).json({
         success: false,
         message: "Forbidden: You cannot delete faculty outside your authorized department.",
@@ -2156,10 +2226,10 @@ export const deleteAdminFaculty = async (req, res) => {
  */
 export const exportAdminFaculty = async (req, res) => {
   try {
-    const callerEmail = req.user?.email;
-    const isAdmin = req.user?.role === "ADMIN";
-    const hodDepartment = getHodDepartment(callerEmail);
-    const isHod = Boolean(hodDepartment);
+    const isAdmin = req.user?.role === "ADMIN" || req.user?.role === "SUPER_ADMIN";
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    const hodDepartmentId = req.user?.departmentId ?? null;
+    const isHod = Boolean(hodDepartmentId);
 
     if (!isAdmin && !isHod) {
       return res.status(403).json({
@@ -2169,8 +2239,8 @@ export const exportAdminFaculty = async (req, res) => {
     }
 
     let targetDepartment = null;
-    if (hodDepartment) {
-      targetDepartment = hodDepartment;
+    if (hodDepartmentId) {
+      targetDepartment = hodDepartmentId;
     } else {
       const queryDept = (req.query.department || "").trim().toUpperCase();
       if (queryDept && queryDept !== "ALL" && queryDept !== "DEAN" && queryDept !== "ALL DEPARTMENTS") {
@@ -2307,23 +2377,25 @@ export const exportAdminFaculty = async (req, res) => {
  */
 export const exportAdminStudents = async (req, res) => {
   try {
-    const callerEmail = req.user?.email;
-    const hodDepartment = getHodDepartment(callerEmail);
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    // null = SUPER_ADMIN/institution-wide; number = HOD locked to that departmentId
+    const hodDepartmentId = req.user?.departmentId ?? null;
+
+    const students = await db.orm.public.Student.all();
+    const users = await db.orm.public.User.all();
+    const departments = await db.orm.public.Department.all();
+    const devices = await db.orm.public.StudentDevice.all();
 
     let targetDepartment = null;
-    if (hodDepartment) {
-      targetDepartment = hodDepartment;
+    if (hodDepartmentId) {
+      const deptObj = resolveDepartment(departments, hodDepartmentId);
+      targetDepartment = deptObj?.code || String(hodDepartmentId);
     } else {
       const queryDept = (req.query.department || "").trim().toUpperCase();
       if (queryDept && queryDept !== "ALL" && queryDept !== "ALL DEPARTMENTS") {
         targetDepartment = queryDept;
       }
     }
-
-    const students = await db.orm.public.Student.all();
-    const users = await db.orm.public.User.all();
-    const departments = await db.orm.public.Department.all();
-    const devices = await db.orm.public.StudentDevice.all();
 
     let list = (students || []).map((s) => {
       const u = users.find((user) => user.id === s.userId);
@@ -2346,10 +2418,8 @@ export const exportAdminStudents = async (req, res) => {
 
     // 1. Department Filter / HOD Isolation
     if (targetDepartment) {
-      list = list.filter(
-        (s) =>
-          s.departmentCode.toUpperCase() === targetDepartment.toUpperCase() ||
-          s.department.toLowerCase().includes(targetDepartment.toLowerCase())
+      list = list.filter((s) =>
+        matchDepartment(s, targetDepartment, departments)
       );
     }
 

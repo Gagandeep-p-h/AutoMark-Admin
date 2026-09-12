@@ -18,7 +18,7 @@ SmartAttend/
 │   │   ├── routes/            # Express routers (/api/admin, /api/auth, etc.)
 │   │   ├── middleware/        # JWT auth & role-based access control
 │   │   └── prisma/            # Prisma schema, migrations, contract
-│   ├── server.js              # Express server entry point (Port 5000)
+│   ├── server.js              # Express server entry point (Port 5001)
 │   ├── .env.example           # Backend environment template
 │   └── package.json           # Backend dependencies
 │
@@ -29,7 +29,7 @@ SmartAttend/
     │   ├── api.ts             # Unified fullstack API client with backend synchronization
     │   ├── auth.ts            # Jose JWT edge session handling
     │   └── utils.ts           # Utility functions
-    ├── next.config.mjs        # Next.js proxy rewrites to backend (/api/backend -> :5000)
+    ├── next.config.mjs        # Next.js proxy rewrites to backend (/api/backend -> :5001)
     ├── .env.example           # Frontend environment template
     └── package.json           # Frontend dependencies
 ```
@@ -41,7 +41,7 @@ SmartAttend/
 ### 1. Prerequisites
 - **Node.js**: v18.0.0 or higher
 - **npm**: v9.0.0 or higher
-- *(Optional)* **PostgreSQL**: v15 or higher (if running live database; otherwise frontend automatically operates in graceful demo mode)
+- *(Optional)* **PostgreSQL**: v15 or higher (if running live database; otherwise frontend automatically operates in graceful fallback mode)
 
 ### 2. Install All Dependencies
 From the repository root:
@@ -67,8 +67,8 @@ npm run dev
 ```
 
 * **Frontend**: [http://localhost:3000](http://localhost:3000)
-* **Backend API**: [http://localhost:5000](http://localhost:5000)
-* **Backend Health**: [http://localhost:5000/api/health](http://localhost:5000/api/health)
+* **Backend API**: [http://localhost:5001](http://localhost:5001)
+* **Backend Health**: [http://localhost:5001/health](http://localhost:5001/health)
 
 ---
 
@@ -85,7 +85,7 @@ npm run dev
 ## 🛠 Available Scripts
 
 From the repository root:
-- `npm run dev`: Concurrently runs both backend (`:5000`) and frontend (`:3000`).
+- `npm run dev`: Concurrently runs both backend (`:5001`) and frontend (`:3000`).
 - `npm run dev:frontend`: Runs only the Next.js frontend dev server.
 - `npm run dev:backend`: Runs only the Express backend dev server.
 - `npm run install:all`: Installs npm dependencies in all directories.
@@ -96,6 +96,6 @@ From the repository root:
 
 ## 🔌 API & Integration Features
 
-- **Next.js Proxy Rewrites**: Frontend calls `/api/backend/*` which automatically proxies to `http://localhost:5000/api/*`, eliminating CORS problems.
+- **Next.js Proxy Rewrites**: Frontend calls `/api/backend/*` which automatically proxies to `http://localhost:5001/api/*`, eliminating CORS problems.
 - **Smart Fallback**: If PostgreSQL or Express is temporarily offline, the frontend falls back seamlessly to demo data so you can continue building and testing without crashes.
 - **Header Status Badge**: An interactive indicator in the top header displays the live connectivity state of the backend API.

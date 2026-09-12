@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession, getBackendToken } from '@/lib/auth';
 
-const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000';
+const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
 
 /**
  * GET /api/admin/timetable/export
