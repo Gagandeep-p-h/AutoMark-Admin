@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { createSession } from '@/lib/auth'
 
-const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000'
+const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001'
 
 export async function POST(req: Request) {
   try {
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
     const normalizedEmail = String(email).trim().toLowerCase()
 
-    // 1. Attempt to authenticate against live Express Backend
+    // 1. Authenticate against live Express Backend
     try {
       const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/auth/login`, {
         method: 'POST',
@@ -35,8 +35,7 @@ export async function POST(req: Request) {
           identifier: normalizedEmail,
           password: password,
         }),
-        // Fast timeout so if backend isn't running it falls through quickly
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(5000),
       })
 
       if (backendRes.ok) {
@@ -154,8 +153,14 @@ export async function POST(req: Request) {
 
     if (!userMatch) {
       return NextResponse.json(
-        { error: 'Invalid username/email or password' },
-        { status: 401 }
+        { error: result.message || 'Invalid username/email or password' },
+        { status: backendRes.status || 401 }
+      )
+    } catch (backendErr) {
+      console.error('Backend authentication unreachable:', backendErr)
+      return NextResponse.json(
+        { error: 'Authentication service unavailable. Please check backend server.' },
+        { status: 503 }
       )
     }
 

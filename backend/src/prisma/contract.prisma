@@ -1,7 +1,9 @@
 // use prisma-next
 
 enum UserRole {
+  SUPER_ADMIN
   ADMIN
+  HOD
   FACULTY
   STUDENT
 }
@@ -31,10 +33,12 @@ model User {
   passwordHash String
   role         UserRole
   isActive     Boolean  @default(true)
+  departmentId Int?
 
   student      Student?
   faculty      Faculty?
   notifications Notification[]
+  auditLogs    AuditLog[]
 
   createdAt    TimestamptzString @default(now())
   updatedAt    temporal.updatedAtString()
@@ -264,4 +268,18 @@ model StudentBatch {
   student   Student  @relation(fields: [studentId], references: [id])
   batchId   Int
   batch     LabBatch @relation(fields: [batchId], references: [id])
-}
+}
+
+model AuditLog {
+  id           Int               @id @default(autoincrement())
+  userId       Int
+  user         User              @relation(fields: [userId], references: [id])
+  action       String
+  entityType   String
+  entityId     Int?
+  departmentId Int?
+  details      String?
+  ipAddress    String?
+
+  createdAt    TimestamptzString @default(now())
+}

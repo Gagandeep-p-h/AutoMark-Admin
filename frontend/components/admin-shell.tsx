@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React, { ReactNode, useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -113,6 +113,13 @@ const SIDEBAR_ITEMS = [
   { label: 'Settings', icon: Settings, href: '/admin/settings' },
 ]
 
+interface UserSession {
+  name: string
+  role: string
+  email: string
+  departmentCode?: string | null
+}
+
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -129,7 +136,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     dept: 'CSE',
   })
 
-  const [backendStatus, setBackendStatus] = React.useState<'checking' | 'live' | 'offline'>('checking')
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'live' | 'offline'>('checking')
 
   useEffect(() => {
     let mounted = true
@@ -190,61 +197,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
     .slice(0, 2)
     .join('')
     .toUpperCase() || 'AD'
-
-  return (
-    <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-card hidden md:flex flex-col h-screen sticky top-0">
-        {/* Brand */}
-        <div className="h-14 border-b border-border flex items-center px-4 gap-2.5">
-          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-xs">
-            <Shield className="size-4" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-bold text-foreground tracking-tight text-sm leading-tight">Automark</span>
-            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Admin Portal</span>
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="p-4">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search anything..."
-              className="w-full h-9 rounded-md border border-input bg-background pl-9 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
-          {SIDEBAR_ITEMS.map(item => {
-            const Icon = item.icon
-            const isActive = pathname.startsWith(item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive
-                  ? 'bg-accent text-accent-foreground font-semibold border-l-2 border-primary'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
-              >
-                <Icon className={`size-4 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
-
-        {/* User Card */}
-        <div className="p-4 border-t border-border">
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center justify-between rounded-lg p-2 hover:bg-muted transition-colors text-left cursor-pointer"
-          >
             <div className="flex items-center gap-3 min-w-0">
               <div className="size-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
                 {initials}
@@ -277,12 +229,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
             {backendStatus === 'live' ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
                 <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Backend API Live
+                Connected
               </span>
             ) : backendStatus === 'offline' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800">
-                <span className="size-1.5 rounded-full bg-amber-500" />
-                Demo Mode (API Offline)
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+                <span className="size-1.5 rounded-full bg-muted-foreground" />
+                Offline
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
@@ -331,3 +283,4 @@ export const C = {
   border: '#E2E8F0',
   white: '#FFFFFF'
 }
+
