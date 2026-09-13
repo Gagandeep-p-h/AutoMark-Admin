@@ -1,12 +1,66 @@
 [
   {
-    "id": "usr_1789035132374",
+    "id": "usr_super_admin",
     "email": "admin@smartattend.edu.in",
     "name": "Anita Kulkarni",
     "role": "super_admin",
-    "department": "Administration",
-    "passwordHash": "$2b$12$FoIanxgfxhEibLFjxwxiUegGnK4aTH/LTROcUio3xIIIfiB.LOUe2",
-    "createdAt": "2026-09-10T10:12:12.374Z",
+    "department": "CSE",
+    "active": true
+  },
+  {
+    "id": "usr_admin_cse",
+    "email": "admin@cse",
+    "name": "CSE Department Admin",
+    "role": "dept_admin",
+    "department": "CSE",
+    "active": true
+  },
+  {
+    "id": "usr_admin_ec",
+    "email": "admin@ec",
+    "name": "ECE Department Admin",
+    "role": "dept_admin",
+    "department": "ECE",
+    "active": true
+  },
+  {
+    "id": "usr_admin_eee",
+    "email": "admin@eee",
+    "name": "EEE Department Admin",
+    "role": "dept_admin",
+    "department": "EEE",
+    "active": true
+  },
+  {
+    "id": "usr_admin_cv",
+    "email": "admin@cv",
+    "name": "Civil Department Admin",
+    "role": "dept_admin",
+    "department": "CV",
+    "active": true
+  },
+  {
+    "id": "usr_admin_me",
+    "email": "admin@me",
+    "name": "Mechanical Department Admin",
+    "role": "dept_admin",
+    "department": "ME",
+    "active": true
+  },
+  {
+    "id": "usr_admin_aiml",
+    "email": "admin@aiml",
+    "name": "AIML Department Admin",
+    "role": "dept_admin",
+    "department": "AIML",
+    "active": true
+  },
+  {
+    "id": "usr_admin_ds",
+    "email": "admin@ds",
+    "name": "Data Science Department Admin",
+    "role": "dept_admin",
+    "department": "DS",
     "active": true
   }
 ]

@@ -13,6 +13,7 @@ export interface SessionPayload {
   email: string
   name: string
   role: string
+  dept?: string
   backendToken?: string
 }
 

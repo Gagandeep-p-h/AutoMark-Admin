@@ -1,6 +1,6 @@
 'use client'
 
-import React, { ReactNode } from 'react'
+import React, { ReactNode, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -13,7 +13,8 @@ import {
   Search,
   LogOut,
   ChevronDown,
-  Shield
+  Shield,
+  FileText
 } from 'lucide-react'
 
 // Common UI Components
@@ -33,18 +34,22 @@ export function Inp({
   placeholder,
   prefix,
   suffix,
-  disabled
+  disabled,
+  className,
+  ...props
 }: {
   type?: string
-  value: string
-  onChange: (val: string) => void
+  value?: string
+  onChange?: (e: any) => void
   placeholder?: string
   prefix?: ReactNode
   suffix?: ReactNode
   disabled?: boolean
+  className?: string
+  [key: string]: any
 }) {
   return (
-    <div className="relative">
+    <div className={`relative ${className || ''}`}>
       {prefix && (
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
           {prefix}
@@ -52,13 +57,16 @@ export function Inp({
       )}
       <input
         type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
+        value={value ?? ''}
+        onChange={e => {
+          if (onChange) onChange(e)
+        }}
         placeholder={placeholder}
         disabled={disabled}
         className={`flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50
           ${prefix ? 'pl-10' : ''} ${suffix ? 'pr-10' : ''}
         `}
+        {...props}
       />
       {suffix && (
         <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground">
@@ -70,15 +78,20 @@ export function Inp({
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  const isGood = ['active', 'linked', 'present', 'registered', 'bound'].includes(status.toLowerCase())
-  const isWarn = ['pending', 'leave'].includes(status.toLowerCase())
-  
+  const s = (status || '').toLowerCase()
+  const isBlue = ['linked', 'registered'].includes(s)
+  const isGreen = ['active', 'present', 'bound'].includes(s)
+  const isWarn = ['pending', 'leave', 'not registered', 'not linked', 'inactive'].includes(s)
+
   let bgClass = 'bg-muted text-muted-foreground border-border'
   let dotClass = 'bg-muted-foreground'
-  
-  if (isGood) {
-    bgClass = 'bg-green-50 text-green-700 border-green-200'
-    dotClass = 'bg-green-500'
+
+  if (isBlue) {
+    bgClass = 'bg-blue-50 text-blue-700 border-blue-200'
+    dotClass = 'bg-blue-600'
+  } else if (isGreen) {
+    bgClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    dotClass = 'bg-emerald-500'
   } else if (isWarn) {
     bgClass = 'bg-amber-50 text-amber-700 border-amber-200'
     dotClass = 'bg-amber-500'
@@ -104,35 +117,93 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
 
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
-    router.push('/admin/login')
-  }
+  const [currentUser, setCurrentUser] = useState<{
+    name: string
+    email: string
+    role: string
+    dept?: string
+  }>({
+    name: 'Department Admin',
+    email: 'admin@cse',
+    role: 'DEPT_ADMIN',
+    dept: 'CSE',
+  })
 
   const [backendStatus, setBackendStatus] = React.useState<'checking' | 'live' | 'offline'>('checking')
 
-  React.useEffect(() => {
+  useEffect(() => {
     let mounted = true
+    try {
+      const storedUser = localStorage.getItem('smartattend_admin_user')
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser)
+        if (parsed?.name) setCurrentUser(parsed)
+      }
+      const storedDept = localStorage.getItem('smartattend_admin_dept')
+      if (storedDept) {
+        setCurrentUser(prev => ({ ...prev, dept: storedDept }))
+      }
+    } catch {}
+
+    fetch('/api/auth/session')
+      .then(res => res.json())
+      .then(data => {
+        if (!mounted) return
+        if (data?.authenticated && data?.user) {
+          setCurrentUser(data.user)
+          try {
+            localStorage.setItem('smartattend_admin_user', JSON.stringify(data.user))
+            if (data.user.dept) {
+              localStorage.setItem('smartattend_admin_dept', data.user.dept)
+            }
+          } catch {}
+        }
+      })
+      .catch(() => {})
+
     import('@/lib/api').then(({ checkBackendHealth }) => {
       checkBackendHealth().then(res => {
         if (mounted) {
           setBackendStatus(res.status === 'OK' ? 'live' : 'offline')
         }
       })
+    }).catch(() => {
+      if (mounted) setBackendStatus('offline')
     })
+
     return () => { mounted = false }
   }, [])
+
+  const handleLogout = async () => {
+    try {
+      localStorage.removeItem('smartattend_admin_dept')
+      localStorage.removeItem('smartattend_admin_user')
+    } catch {}
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.push('/admin/login')
+  }
+
+  const initials = currentUser.name
+    .split(' ')
+    .map(p => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'AD'
 
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       <aside className="w-64 border-r border-border bg-card hidden md:flex flex-col h-screen sticky top-0">
         {/* Brand */}
-        <div className="h-14 border-b border-border flex items-center px-4 gap-2">
-          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+        <div className="h-14 border-b border-border flex items-center px-4 gap-2.5">
+          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-xs">
             <Shield className="size-4" />
           </div>
-          <span className="font-semibold text-foreground tracking-tight">SmartAttend</span>
+          <div className="flex flex-col">
+            <span className="font-bold text-foreground tracking-tight text-sm leading-tight">Automark</span>
+            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Admin Portal</span>
+          </div>
         </div>
 
         {/* Search */}
@@ -142,7 +213,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <input
               type="text"
               placeholder="Search anything..."
-              className="w-full h-9 rounded-md border border-input bg-background pl-9 pr-4 text-sm outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-9 rounded-md border border-input bg-background pl-9 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
             />
           </div>
         </div>
@@ -156,13 +227,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                }`}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive
+                  ? 'bg-accent text-accent-foreground font-semibold border-l-2 border-primary'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
               >
-                <Icon className="size-4" />
+                <Icon className={`size-4 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
                 {item.label}
               </Link>
             )
@@ -171,20 +241,22 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
         {/* User Card */}
         <div className="p-4 border-t border-border">
-          <button 
+          <button
             onClick={handleLogout}
-            className="flex w-full items-center justify-between rounded-md p-2 hover:bg-accent transition-colors text-left"
+            className="flex w-full items-center justify-between rounded-lg p-2 hover:bg-muted transition-colors text-left cursor-pointer"
           >
-            <div className="flex items-center gap-3">
-              <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
-                AK
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="size-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                {initials}
               </div>
-              <div>
-                <p className="text-sm font-medium text-foreground leading-none">Anita K.</p>
-                <p className="text-xs text-muted-foreground mt-1">Super Admin</p>
+              <div className="truncate">
+                <p className="text-sm font-medium text-foreground leading-none truncate">{currentUser.name}</p>
+                <p className="text-xs text-muted-foreground mt-1 truncate">
+                  {currentUser.dept ? `${currentUser.dept} Department` : 'Administrator'}
+                </p>
               </div>
             </div>
-            <LogOut className="size-4 text-muted-foreground" />
+            <LogOut className="size-4 text-muted-foreground shrink-0 ml-2" />
           </button>
         </div>
       </aside>
@@ -194,13 +266,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
         {/* Top Header */}
         <header className="h-14 border-b border-border bg-card flex items-center justify-between px-6 shrink-0 z-10 sticky top-0">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Admin Console</span>
+            <span className="font-medium text-foreground">Automark Admin Portal</span>
             <span>/</span>
-            <span className="text-foreground font-medium capitalize">
+            <span className="text-primary font-medium capitalize">
               {pathname.split('/').pop() || 'Dashboard'}
             </span>
           </div>
-          
+
           <div className="flex items-center gap-3">
             {backendStatus === 'live' ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
@@ -219,10 +291,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
               </span>
             )}
 
-            <button className="relative p-2 text-muted-foreground hover:bg-accent rounded-full transition-colors">
-              <Bell className="size-4" />
-              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-destructive border-2 border-card" />
-            </button>
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+              {currentUser.dept || 'CSE'} Department
+            </span>
           </div>
         </header>
 
@@ -242,22 +313,21 @@ export function AdminContent({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
-// Re-export constants for compatibility with existing files temporarily if they need it,
-// though we aim to remove them all.
+// Re-export constants with clean royal blue & dark slate tokens
 export const C = {
-  navy: '#09090B',
-  blue: '#18181B',
-  blueLight: '#F4F4F5',
-  blueFaint: '#FAFAFA',
+  navy: '#0B192C',
+  blue: '#0D59D6',
+  blueLight: '#EFF6FF',
+  blueFaint: '#F8FAFC',
   green: '#16A34A',
   greenLight: '#DCFCE7',
   red: '#DC2626',
   redLight: '#FEE2E2',
   orange: '#EA580C',
   orangeLight: '#FFEDD5',
-  purple: '#9333EA',
+  purple: '#7C3AED',
   purpleLight: '#F3E8FF',
-  textSecondary: '#71717A',
-  border: '#E4E4E7',
+  textSecondary: '#64748B',
+  border: '#E2E8F0',
   white: '#FFFFFF'
 }

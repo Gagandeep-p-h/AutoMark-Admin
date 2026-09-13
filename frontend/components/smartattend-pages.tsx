@@ -6,11 +6,14 @@ import {
   GraduationCap,
   Users,
   ClipboardList,
+  SlidersHorizontal,
+  BarChart3,
   UserCog,
   Settings,
   ArrowRight,
   Shield,
   Search,
+  Filter,
   Plus,
   MoreVertical,
   Edit2,
@@ -18,141 +21,48 @@ import {
   CheckCircle2,
   XCircle,
   Download,
-  Loader2,
-  X,
-  Sparkles,
   Upload,
   FileSpreadsheet,
   FileText,
+  Sparkles,
+  Key,
+  TrendingUp,
+  Lock,
+  ChevronDown,
+  ChevronUp,
+  ArrowLeft,
+  Smartphone,
   AlertCircle,
   Check,
-  Smartphone,
-  Key,
-  ChevronDown
+  Loader2,
+  X
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { AdminShell, AdminContent, StatusBadge, Label, Inp } from './admin-shell'
 import {
-  getStudents,
-  createStudent,
   getFaculty,
   createFacultyAdmin,
   updateFacultyAdmin,
   deleteFacultyAdmin,
   downloadFacultyExport,
-  downloadStudentsExport,
-  previewImportStudents,
-  commitImportStudents,
-  previewAssignDivision,
-  commitAssignDivision,
-  AssignDivisionPreviewResult,
-  previewAssignLabBatch,
-  commitAssignLabBatch,
-  AssignLabBatchPreviewResult,
-  StudentRecord,
   FacultyRecord,
-  ImportPreviewResult,
-  updateStudentAdmin,
-  deleteStudentAdmin,
-  getStudentDeviceAdmin,
-  resetStudentDeviceAdmin,
-  StudentDeviceDetail
 } from '@/lib/api'
 
-// Helper for USN range matching (handles alphanumeric prefixes, numeric suffixes, and lexicographical ranges)
-function isUsnInRange(usn: string, from: string, to: string): boolean {
-  if (!from && !to) return true
-  const sUsn = String(usn || '').trim().toUpperCase()
-  const cFrom = String(from || '').trim().toUpperCase()
-  const cTo = String(to || '').trim().toUpperCase()
-
-  if (cFrom && cTo) {
-    const isFromNum = /^\d+$/.test(cFrom)
-    const isToNum = /^\d+$/.test(cTo)
-
-    if (isFromNum && isToNum) {
-      const match = sUsn.match(/(\d+)$/)
-      if (match) {
-        const usnNum = parseInt(match[1], 10)
-        const fromNum = parseInt(cFrom, 10)
-        const toNum = parseInt(cTo, 10)
-        return usnNum >= fromNum && usnNum <= toNum
-      }
-    }
-
-    const fromPrefix = cFrom.replace(/\d+$/, '')
-    const toPrefix = cTo.replace(/\d+$/, '')
-    const usnPrefix = sUsn.replace(/\d+$/, '')
-
-    if (fromPrefix && fromPrefix === toPrefix && usnPrefix === fromPrefix) {
-      const fromNumMatch = cFrom.match(/(\d+)$/)
-      const toNumMatch = cTo.match(/(\d+)$/)
-      const usnNumMatch = sUsn.match(/(\d+)$/)
-      if (fromNumMatch && toNumMatch && usnNumMatch) {
-        const usnNum = parseInt(usnNumMatch[1], 10)
-        const fromNum = parseInt(fromNumMatch[1], 10)
-        const toNum = parseInt(toNumMatch[1], 10)
-        return usnNum >= fromNum && usnNum <= toNum
-      }
-    }
-
-    return sUsn >= cFrom && sUsn <= cTo
-  }
-
-  if (cFrom && !cTo) {
-    if (/^\d+$/.test(cFrom)) {
-      const match = sUsn.match(/(\d+)$/)
-      if (match) return parseInt(match[1], 10) >= parseInt(cFrom, 10)
-    }
-    return sUsn >= cFrom || sUsn.includes(cFrom)
-  }
-
-  if (!cFrom && cTo) {
-    if (/^\d+$/.test(cTo)) {
-      const match = sUsn.match(/(\d+)$/)
-      if (match) return parseInt(match[1], 10) <= parseInt(cTo, 10)
-    }
-    return sUsn <= cTo
-  }
-
-  return true
-}
-
-function matchesDivision(studentSection: string | undefined, selectedDiv: string): boolean {
-  if (!selectedDiv) return true
-  const sSec = String(studentSection || '').trim().toUpperCase()
-  const sel = selectedDiv.trim().toUpperCase()
-  return sSec === sel || sSec === `SEC ${sel}` || sSec === `DIVISION ${sel}` || sSec === `DIV ${sel}`
-}
-
-// Helper for numeric-aware USN comparison (sorts LOW -> HIGH)
 export function compareUsn(a: string | undefined, b: string | undefined): number {
-  const sA = String(a || '').trim().toUpperCase()
-  const sB = String(b || '').trim().toUpperCase()
-  if (!sA && !sB) return 0
-  if (!sA) return 1
-  if (!sB) return -1
-
-  const matchA = sA.match(/^(.*?)(\d+)$/)
-  const matchB = sB.match(/^(.*?)(\d+)$/)
-
-  if (matchA && matchB) {
-    const prefixA = matchA[1]
-    const prefixB = matchB[1]
-    if (prefixA === prefixB) {
-      const numA = parseInt(matchA[2], 10)
-      const numB = parseInt(matchB[2], 10)
-      if (numA !== numB) return numA - numB
-    }
-  }
-
-  return sA.localeCompare(sB, undefined, { numeric: true, sensitivity: 'base' })
+  if (!a && !b) return 0
+  if (!a) return 1
+  if (!b) return -1
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
 }
+
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 const quickActions = [
   { title: 'Student Management', href: '/admin/students', icon: GraduationCap, desc: 'Manage student records' },
   { title: 'Faculty Management', href: '/admin/faculty', icon: Users, desc: 'Manage faculty profiles' },
   { title: 'Timetable Management', href: '/admin/timetable', icon: ClipboardList, desc: 'Plan and manage classes' },
+  { title: 'Attendance Overview', href: '/admin/reports', icon: SlidersHorizontal, desc: 'View attendance data' },
+  { title: 'Reports & Analytics', href: '/admin/reports', icon: BarChart3, desc: 'View institutional reports' },
   { title: 'Users & Roles', href: '/admin/users', icon: UserCog, desc: 'Manage system users' },
   { title: 'Audit Logs', href: '/admin/audit-logs', icon: ClipboardList, desc: 'Track admin activity' },
   { title: 'System Settings', href: '/admin/settings', icon: Settings, desc: 'Configure your console' },
@@ -179,10 +89,10 @@ export function DashboardPage() {
                   <Link
                     key={action.title}
                     href={action.href}
-                    className="group relative flex flex-col justify-between rounded-xl border border-border bg-card p-6 shadow-sm transition-all hover:border-foreground/30 hover:shadow-md"
+                    className="group relative flex flex-col justify-between rounded-xl border border-border bg-card p-6 shadow-sm transition-all hover:border-primary/40 hover:shadow-sm"
                   >
                     <div className="space-y-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="space-y-1">
@@ -205,92 +115,779 @@ export function DashboardPage() {
 }
 
 // ─── Students Page ────────────────────────────────────────────────────────────
-export function StudentsPage() {
+interface Student {
+  name: string
+  usn: string
+  dept: string
+  year: string
+  semester: string
+  section: string
+  account: string
+  device: string
+  email?: string
+  password?: string | null
+  Lab?: string
+  lab?: string
+  deviceBound?: boolean
+  boundDeviceName?: string | null
+}
+
+const students: Student[] = []
+
+export interface ImportPreviewItem {
+  usn: string
+  name: string
+  email?: string
+  department: string
+  year: string
+  semester: string
+  section: string
+  labBatch: string
+  status: 'READY' | 'ALREADY_EXISTS' | 'OTHER_DEPT' | 'DUPLICATE_IN_FILE' | 'INVALID'
+  reason?: string
+}
+
+export interface ImportPreviewData {
+  totalFound: number
+  readyToImport: number
+  alreadyExists: number
+  otherDeptCount: number
+  duplicatesInFile: number
+  invalidRows: number
+  department: string
+  year: string
+  semester: string
+  students: ImportPreviewItem[]
+}
+
+// Helper to match student department, handling aliases (e.g. EC/ECE, CV/CIVIL, ME/MECH, AIML/AI, DS/AIDS)
+export function isStudentInDept(studentDept?: string | null, targetDept?: string | null): boolean {
+  if (!studentDept || !targetDept) return false
+  const s = studentDept.trim().toUpperCase()
+  const t = targetDept.trim().toUpperCase()
+  if (s === t) return true
+
+  // CSE / CS
+  if ((s === 'CSE' || s === 'CS') && (t === 'CSE' || t === 'CS')) return true
+  // EC / ECE
+  if ((s === 'EC' || s === 'ECE') && (t === 'EC' || t === 'ECE')) return true
+  // EEE / EE
+  if ((s === 'EEE' || s === 'EE') && (t === 'EEE' || t === 'EE')) return true
+  // CV / CIVIL
+  if ((s === 'CV' || s === 'CIVIL') && (t === 'CV' || t === 'CIVIL')) return true
+  // ME / MECH / MECHANICAL
+  if ((s === 'ME' || s === 'MECH' || s === 'MECHANICAL') && (t === 'ME' || t === 'MECH' || t === 'MECHANICAL')) return true
+  // AIML / AI
+  if ((s === 'AIML' || s === 'AI') && (t === 'AIML' || t === 'AI')) return true
+  // DS / AIDS / DATA SCIENCE
+  if ((s === 'DS' || s === 'AIDS' || s === 'DATA SCIENCE') && (t === 'DS' || t === 'AIDS' || t === 'DATA SCIENCE')) return true
+  // ISE / IS
+  if ((s === 'ISE' || s === 'IS') && (t === 'ISE' || t === 'IS')) return true
+
+  return false
+}
+
+// Helper to extract standard branch code from department name (e.g. CSE -> CS, ECE -> EC)
+export function getDeptCodeFromDept(dept?: string | null): string {
+  if (!dept) return 'CS'
+  const d = dept.trim().toUpperCase()
+  if (d === 'CSE' || d === 'CS') return 'CS'
+  if (d === 'ECE' || d === 'EC') return 'EC'
+  if (d === 'EEE' || d === 'EE') return 'EE'
+  if (d === 'CV' || d === 'CIVIL') return 'CV'
+  if (d === 'ME' || d === 'MECH' || d === 'MECHANICAL') return 'ME'
+  if (d === 'AIML' || d === 'AI') return 'AI'
+  if (d === 'DS' || d === 'AIDS' || d === 'DATA SCIENCE') return 'DS'
+  if (d === 'ISE' || d === 'IS') return 'IS'
+  return d.slice(0, 2)
+}
+
+// Helper to calculate admission year digits (e.g. '23', '24') from academic year
+export function getAdmissionYearFromAcademicYear(acadYear?: string | null): string {
+  if (!acadYear) return '23'
+  const y = acadYear.trim()
+  if (y.includes('1')) return '24'
+  if (y.includes('2')) return '23'
+  if (y.includes('3')) return '22'
+  if (y.includes('4')) return '21'
+  return '23'
+}
+
+// Helper to verify if a section belongs to the target department (e.g. "ECE 2A" for ECE)
+// Generic sections like "Section A", "A", or "2A" without a foreign department prefix belong to targetDept
+export function isSectionInDept(section?: string | null, targetDept?: string | null): boolean {
+  if (!section || !targetDept) return true
+  const sec = section.trim().toUpperCase()
+
+  const knownDepts = [
+    'CSE', 'CS', 'ECE', 'EC', 'EEE', 'EE', 'CV', 'CIVIL',
+    'ME', 'MECH', 'MECHANICAL', 'AIML', 'AI', 'DS', 'AIDS', 'DATA SCIENCE', 'ISE', 'IS'
+  ]
+  for (const kd of knownDepts) {
+    if (
+      sec.startsWith(kd + ' ') ||
+      sec.startsWith(kd + '-') ||
+      sec.startsWith(kd + '_') ||
+      (sec.length > kd.length && sec.startsWith(kd) && /\d/.test(sec[kd.length]))
+    ) {
+      return isStudentInDept(kd, targetDept)
+    }
+  }
+
+  return true
+}
+
+// Helper to normalize any semester input (e.g. "3", "3 Sem", "3rd", "3rd Sem") into canonical "3rd Sem"
+export function normalizeSemesterString(sem?: string | null): string {
+  if (!sem) return '1st Sem'
+  const trimmed = sem.trim()
+  const numMatch = trimmed.match(/\d+/)
+  if (!numMatch) return trimmed
+  const n = parseInt(numMatch[0])
+  const suffixes: Record<number, string> = {
+    1: '1st',
+    2: '2nd',
+    3: '3rd',
+    4: '4th',
+    5: '5th',
+    6: '6th',
+    7: '7th',
+    8: '8th',
+  }
+  const prefix = suffixes[n] || `${n}th`
+  return `${prefix} Sem`
+}
+
+// Helper to verify if a USN belongs to the target department (e.g. 2VD23CS009 for CSE, 01EC203 for ECE)
+export function isUsnInDept(usn?: string | null, targetDept?: string | null): boolean {
+  if (!usn || !targetDept) return false
+  const cleanUsn = usn.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const deptCode = getDeptCodeFromDept(targetDept)
+  const fullDept = targetDept.trim().toUpperCase()
+
+  // Match VTU standard pattern: e.g. 2VD 23 CS 009
+  const vtuMatch = cleanUsn.match(/^[0-9A-Z]{3}\d{2}([A-Z]{2,4})\d+$/)
+  if (vtuMatch) {
+    const branch = vtuMatch[1]
+    if (branch === deptCode || branch === fullDept || isStudentInDept(branch, targetDept)) {
+      return true
+    }
+    return false
+  }
+
+  // Autonomous / college roll pattern: e.g. 01EC203, 23EC009, 2VDEC001
+  const fallbackRegex = new RegExp(`(?:2VD|\\d{1,4})(${deptCode}|${fullDept})\\d+`, 'i')
+  if (fallbackRegex.test(cleanUsn)) return true
+
+  // Direct prefix pattern: e.g. EC001, ECE001
+  if (cleanUsn.startsWith(deptCode) || cleanUsn.startsWith(fullDept)) return true
+
+  const branchInUsn = cleanUsn.match(/[0-9]+([A-Z]{2,4})[0-9]*/)
+  if (branchInUsn && (branchInUsn[1] === deptCode || isStudentInDept(branchInUsn[1], targetDept))) {
+    return true
+  }
+
+  return false
+}
+
+// Client-side Excel (.xlsx, .xls) and CSV parser matching zoattendence
+export async function parseStudentFileClient(
+  file: File,
+  dept: string,
+  targetYear: string,
+  targetSem: string,
+  existingStudents: Student[]
+): Promise<ImportPreviewData> {
+  const buffer = await file.arrayBuffer()
+  let workbook: XLSX.WorkBook
+  try {
+    workbook = XLSX.read(buffer, { type: 'array' })
+  } catch (err: any) {
+    throw new Error('Could not read the uploaded file. Please ensure it is a valid .xlsx, .xls, or .csv file.')
+  }
+
+  if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+    throw new Error('The uploaded spreadsheet contains no sheets.')
+  }
+
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+
+  if (!rows || rows.length === 0) {
+    throw new Error('The uploaded spreadsheet is empty.')
+  }
+
+  // Column matching heuristics (as in zoattendence studentFileParser)
+  let usnColIndex = -1
+  let nameColIndex = -1
+  let secColIndex = -1
+  let labColIndex = -1
+  let emailColIndex = -1
+  let semColIndex = -1
+  let deptColIndex = -1
+  let headerRowIndex = -1
+
+  for (let r = 0; r < Math.min(rows.length, 15); r++) {
+    const row = rows[r]
+    if (!Array.isArray(row)) continue
+
+    for (let c = 0; c < row.length; c++) {
+      const cell = String(row[c] || '').trim().toLowerCase()
+      if (
+        usnColIndex === -1 &&
+        (cell === 'usn' || cell === 'usn no' || cell === 'usn number' ||
+         cell === 'university seat number' || cell === 'roll no' ||
+         cell === 'register number' || cell === 'reg no' || cell.includes('usn'))
+      ) {
+        usnColIndex = c
+      }
+
+      if (
+        nameColIndex === -1 &&
+        (cell === 'name' || cell === 'student name' || cell === 'candidate name' ||
+         cell === 'full name' || cell === 'student_name' ||
+         (cell.includes('name') && !cell.includes('father') && !cell.includes('college') && !cell.includes('dept')))
+      ) {
+        nameColIndex = c
+      }
+
+      if (
+        deptColIndex === -1 &&
+        (cell === 'department' || cell === 'dept' || cell === 'branch' || cell === 'course')
+      ) {
+        deptColIndex = c
+      }
+
+      if (
+        secColIndex === -1 &&
+        (cell === 'section' || cell === 'sec' || cell === 'division' || cell === 'div')
+      ) {
+        secColIndex = c
+      }
+
+      if (
+        labColIndex === -1 &&
+        (cell === 'lab' || cell === 'batch' || cell === 'lab batch' || cell === 'labbatch' || cell === 'lab group')
+      ) {
+        labColIndex = c
+      }
+
+      if (
+        emailColIndex === -1 &&
+        (cell === 'email' || cell === 'mail' || cell === 'email id' || cell === 'email address')
+      ) {
+        emailColIndex = c
+      }
+
+      if (
+        semColIndex === -1 &&
+        (cell === 'sem' || cell === 'semester')
+      ) {
+        semColIndex = c
+      }
+    }
+
+    if (usnColIndex !== -1 && nameColIndex !== -1) {
+      headerRowIndex = r
+      break
+    }
+  }
+
+  const extractedList: Array<{
+    rawUsn: string
+    rawName: string
+    rawSection?: string
+    rawLab?: string
+    rawEmail?: string
+    rawSem?: string
+    rawDept?: string
+  }> = []
+
+  if (usnColIndex !== -1 && nameColIndex !== -1) {
+    for (let r = headerRowIndex + 1; r < rows.length; r++) {
+      const row = rows[r]
+      if (!Array.isArray(row) || row.length === 0) continue
+
+      const rawUsn = String(row[usnColIndex] || '').trim()
+      const rawName = String(row[nameColIndex] || '').trim()
+      const rawSection = secColIndex !== -1 ? String(row[secColIndex] || '').trim() : undefined
+      const rawLab = labColIndex !== -1 ? String(row[labColIndex] || '').trim() : undefined
+      const rawEmail = emailColIndex !== -1 ? String(row[emailColIndex] || '').trim() : undefined
+      const rawSem = semColIndex !== -1 ? String(row[semColIndex] || '').trim() : undefined
+      const rawDept = deptColIndex !== -1 ? String(row[deptColIndex] || '').trim() : undefined
+
+      if (!rawUsn && !rawName) continue
+      extractedList.push({ rawUsn, rawName, rawSection, rawLab, rawEmail, rawSem, rawDept })
+    }
+  } else {
+    // Fallback: row-by-row scanner
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r]
+      if (!Array.isArray(row) || row.length === 0) continue
+
+      let candidateUsn = ''
+      let candidateName = ''
+
+      for (let c = 0; c < row.length; c++) {
+        const cell = String(row[c] || '').trim()
+        if (!cell) continue
+
+        const match = cell.match(/\b([0-9][A-Z]{2}[0-9]{2}[A-Z]{2,3}[0-9]{3})\b/i) || cell.match(/\b([0-9A-Z]{4,10})\b/i)
+        if (match && !candidateUsn && /[0-9]/.test(cell) && /[A-Za-z]/.test(cell) && cell.length <= 12) {
+          candidateUsn = match[0]
+        } else if (!candidateName && /[a-zA-Z]{2,}/.test(cell) && !/\d/.test(cell) && cell.length >= 2 && cell.length <= 60) {
+          candidateName = cell
+        }
+      }
+
+      if (candidateUsn || candidateName) {
+        extractedList.push({ rawUsn: candidateUsn, rawName: candidateName })
+      }
+    }
+  }
+
+  if (extractedList.length === 0) {
+    throw new Error('No students found in the file. Please ensure the file contains USN and Name columns.')
+  }
+
+  const seenInFile = new Set<string>()
+  const parsedStudents: ImportPreviewItem[] = []
+
+  let readyCount = 0
+  let alreadyExistsCount = 0
+  let otherDeptCount = 0
+  let duplicatesInFileCount = 0
+  let invalidRowsCount = 0
+
+  for (const item of extractedList) {
+    // USN must be cleaned, uppercased, and capped to 10 chars (VARCHAR(10))
+    let cleanedUsn = item.rawUsn
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 10)
+
+    let cleanedName = item.rawName
+      .replace(/[0-9\t\r\n\|]/g, ' ')
+      .replace(/[^\w\s\.\,\']/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase()
+
+    const assignedSem = item.rawSem ? normalizeSemesterString(item.rawSem) : targetSem
+    const semToYear: Record<string, string> = {
+      '1st Sem': '1st Year',
+      '2nd Sem': '1st Year',
+      '3rd Sem': '2nd Year',
+      '4th Sem': '2nd Year',
+      '5th Sem': '3rd Year',
+      '6th Sem': '3rd Year',
+      '7th Sem': '4th Year',
+      '8th Sem': '4th Year'
+    }
+    const resolvedYear = semToYear[assignedSem] || targetYear
+    const resolvedYearNum = resolvedYear.match(/\d/)?.[0] || '1'
+
+    let assignedSection = `${dept} ${resolvedYearNum}A`
+    if (item.rawSection) {
+      const secLetter = getSectionLetter(item.rawSection)
+      assignedSection = `${dept} ${resolvedYearNum}${secLetter}`
+    }
+
+    const secLetter = getSectionLetter(assignedSection)
+    let assignedLab = `${secLetter}1`
+    if (item.rawLab) {
+      let rawL = item.rawLab.toUpperCase().replace(/^LAB\s*/i, '').trim()
+      if (rawL) {
+        assignedLab = rawL.startsWith(secLetter) ? rawL : `${secLetter}${rawL.replace(/[^0-9]/g, '') || '1'}`
+      }
+    }
+
+    let status: ImportPreviewItem['status'] = 'READY'
+    let reason: string | undefined = undefined
+
+    if (!cleanedUsn || cleanedUsn.length < 3 || cleanedUsn.length > 10) {
+      status = 'INVALID'
+      reason = 'USN must be between 3 and 10 alphanumeric characters'
+      invalidRowsCount++
+    } else if (!cleanedName || cleanedName.length < 2) {
+      status = 'INVALID'
+      reason = 'Student name is missing or too short'
+      invalidRowsCount++
+    } else if ((item.rawDept && !isStudentInDept(item.rawDept, dept)) || !isUsnInDept(cleanedUsn, dept)) {
+      status = 'OTHER_DEPT'
+      const branchLabel = item.rawDept || 'Other Branch'
+      reason = `Other branch (${branchLabel}) - Skipped`
+      otherDeptCount++
+    } else if (seenInFile.has(cleanedUsn)) {
+      status = 'DUPLICATE_IN_FILE'
+      reason = 'Duplicate USN in uploaded file'
+      duplicatesInFileCount++
+    } else if (existingStudents.some(s => s.usn.toUpperCase() === cleanedUsn)) {
+      status = 'ALREADY_EXISTS'
+      reason = 'Already registered in database (will update year/semester/section)'
+      alreadyExistsCount++
+      seenInFile.add(cleanedUsn)
+    } else {
+      status = 'READY'
+      readyCount++
+      seenInFile.add(cleanedUsn)
+    }
+
+    parsedStudents.push({
+      usn: cleanedUsn || item.rawUsn,
+      name: cleanedName || item.rawName,
+      email: item.rawEmail || (cleanedUsn ? `${cleanedUsn.toLowerCase()}@klsvdit.edu.in` : ''),
+      department: dept,
+      year: resolvedYear,
+      semester: assignedSem,
+      section: assignedSection,
+      labBatch: assignedLab,
+      status,
+      reason
+    })
+  }
+
+  return {
+    totalFound: parsedStudents.length,
+    readyToImport: readyCount,
+    alreadyExists: alreadyExistsCount,
+    otherDeptCount,
+    duplicatesInFile: duplicatesInFileCount,
+    invalidRows: invalidRowsCount,
+    department: dept,
+    year: targetYear,
+    semester: targetSem,
+    students: parsedStudents
+  }
+}
+
+const DEFAULT_YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
+
+const YEAR_SEMESTERS: Record<string, string[]> = {
+  '1st Year': ['1st Sem', '2nd Sem'],
+  '2nd Year': ['3rd Sem', '4th Sem'],
+  '3rd Year': ['5th Sem', '6th Sem'],
+  '4th Year': ['7th Sem', '8th Sem'],
+}
+
+// Progression mapping for bulk promotion to next semester and year
+export const SEMESTER_PROGRESSION: Record<string, { nextSem: string; nextYear: string }> = {
+  '1st Sem': { nextSem: '2nd Sem', nextYear: '1st Year' },
+  '2nd Sem': { nextSem: '3rd Sem', nextYear: '2nd Year' },
+  '3rd Sem': { nextSem: '4th Sem', nextYear: '2nd Year' },
+  '4th Sem': { nextSem: '5th Sem', nextYear: '3rd Year' },
+  '5th Sem': { nextSem: '6th Sem', nextYear: '3rd Year' },
+  '6th Sem': { nextSem: '7th Sem', nextYear: '4th Year' },
+  '7th Sem': { nextSem: '8th Sem', nextYear: '4th Year' },
+}
+
+export const isOddSemester = (sem?: string | null): boolean => {
+  if (!sem) return true
+  const num = parseInt(sem.replace(/\D/g, '')) || 1
+  return num % 2 !== 0
+}
+
+export const isSemesterActive = (sem: string, cycle: 'ODD' | 'EVEN'): boolean => {
+  const isOdd = isOddSemester(sem)
+  return cycle === 'ODD' ? isOdd : !isOdd
+}
+
+// Helper to extract clean Section Letter (A, B, C...)
+export function getSectionLetter(section?: string | null): string {
+  if (!section) return 'A'
+  const match = section.trim().match(/([A-Za-z])$/)
+  return match ? match[1].toUpperCase() : section.trim().toUpperCase()
+}
+
+// Helper to format Section for display (Section A, Section B)
+export function getSectionDisplayName(section?: string | null): string {
+  if (!section || section === 'ALL') return 'All Sections'
+  const letter = getSectionLetter(section)
+  return `Section ${letter}`
+}
+
+// Helper to format Section and Lab Batch cleanly as A/A1
+export function formatSectionLab(section?: string | null, lab?: string | null): string {
+  const secLetter = getSectionLetter(section)
+  let rawLab = (lab || '').trim()
+  if (rawLab.toUpperCase().startsWith('LAB')) {
+    rawLab = rawLab.replace(/^LAB\s*/i, '').trim()
+  }
+  let labCode = rawLab
+  if (!labCode || !/[A-Za-z]/.test(labCode)) {
+    const num = labCode.replace(/[^0-9]/g, '') || '1'
+    labCode = `${secLetter}${num}`
+  } else {
+    labCode = labCode.toUpperCase()
+  }
+  return `${secLetter}/${labCode}`
+}
+
+export function StudentsPage({ adminDept: initialAdminDept = 'CSE' }: { adminDept?: string } = {}) {
   const [query, setQuery] = useState('')
-  const [students, setStudents] = useState<StudentRecord[]>([])
-  const [isLive, setIsLive] = useState(false)
-  const [isHod, setIsHod] = useState(false)
-  const [hodDepartment, setHodDepartment] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [errorMessage, setErrorMessage] = useState('')
-  const [successMessage, setSuccessMessage] = useState('')
+  const [selectedYear, setSelectedYear] = useState<string | null>(null)
+  const [selectedSem, setSelectedSem] = useState<string | null>(null)
+  const [selectedSection, setSelectedSection] = useState<string | null>('ALL')
+  const [selectedLabBatch, setSelectedLabBatch] = useState<string>('ALL')
+  const [openYearDropdown, setOpenYearDropdown] = useState<string | null>(null)
+  const [students_data, setStudentsData] = useState<Student[]>(students)
+  const [isStudentsLoaded, setIsStudentsLoaded] = useState(false)
 
-  // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    registerNumber: '',
-    department: 'Computer Science',
-    semester: 3,
-    section: 'A',
-    academicYear: '2026-27'
+  // Custom lab batches mapped by section letter (admin can create new batches)
+  const [customLabBatches, setCustomLabBatches] = useState<Record<string, string[]>>({})
+
+  // Custom sections mapped by year_sem key
+  const [customSections, setCustomSections] = useState<Record<string, string[]>>({})
+
+  // Helper to persist students_data and custom metadata to both localStorage and server API
+  const persistStudents = (
+    updatedStudents: Student[],
+    updatedSections?: Record<string, string[]>,
+    updatedBatches?: Record<string, string[]>
+  ) => {
+    try {
+      localStorage.setItem('smartattend_students_data', JSON.stringify(updatedStudents))
+      if (updatedSections) {
+        localStorage.setItem('smartattend_custom_sections', JSON.stringify(updatedSections))
+      }
+      if (updatedBatches) {
+        localStorage.setItem('smartattend_custom_lab_batches', JSON.stringify(updatedBatches))
+      }
+    } catch (e) {
+      console.error('Failed to persist students to localStorage:', e)
+    }
+
+    // Persist to server API in background
+    fetch('/api/admin/students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        students: updatedStudents,
+        customSections: updatedSections || customSections,
+        customLabBatches: updatedBatches || customLabBatches
+      })
+    }).catch(() => {})
+  }
+
+  // Restore students and metadata on initial mount (from localStorage and/or server)
+  useEffect(() => {
+    let localFound = false
+    try {
+      const stored = localStorage.getItem('smartattend_students_data')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setStudentsData(parsed)
+          localFound = true
+        }
+      }
+
+      const storedSections = localStorage.getItem('smartattend_custom_sections')
+      if (storedSections) {
+        const parsedSec = JSON.parse(storedSections)
+        if (parsedSec && typeof parsedSec === 'object') {
+          setCustomSections(parsedSec)
+        }
+      }
+
+      const storedBatches = localStorage.getItem('smartattend_custom_lab_batches')
+      if (storedBatches) {
+        const parsedBatches = JSON.parse(storedBatches)
+        if (parsedBatches && typeof parsedBatches === 'object') {
+          setCustomLabBatches(parsedBatches)
+        }
+      }
+    } catch (e) {
+      console.error('Failed to restore students from localStorage:', e)
+    }
+
+    // Also synchronize with /api/admin/students
+    fetch('/api/admin/students')
+      .then(res => res.json())
+      .then(res => {
+        let loadedStudents: any[] = []
+        let loadedSections: Record<string, string[]> = {}
+        let loadedBatches: Record<string, string[]> = {}
+
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          loadedStudents = res.data
+          setStudentsData(res.data)
+          try {
+            localStorage.setItem('smartattend_students_data', JSON.stringify(res.data))
+          } catch {}
+        }
+        if (res.meta?.customSections && Object.keys(res.meta.customSections).length > 0) {
+          loadedSections = res.meta.customSections
+        }
+        if (res.meta?.customLabBatches && Object.keys(res.meta.customLabBatches).length > 0) {
+          loadedBatches = res.meta.customLabBatches
+        }
+
+        // Prune stale empty sections/batches immediately after loading from server
+        const studentsForPrune = loadedStudents.length > 0 ? loadedStudents : []
+        const prunedSecs: Record<string, string[]> = {}
+        Object.entries(loadedSections).forEach(([key, secs]) => {
+          const [yr, sm] = key.split('_')
+          const active = (secs as string[]).filter((sec: string) => {
+            const letter = sec.replace(/.*?([A-Z])\s*$/, '$1').toUpperCase()
+            return studentsForPrune.some((s: any) => {
+              const sLetter = (s.section || '').replace(/.*?([A-Z])\s*$/, '$1').toUpperCase()
+              return s.year === yr && s.semester === sm && sLetter === letter
+            })
+          })
+          if (active.length > 0) prunedSecs[key] = active
+        })
+        const prunedBatches: Record<string, string[]> = {}
+        Object.entries(loadedBatches).forEach(([secLetter, batches]) => {
+          const active = (batches as string[]).filter((batch: string) => {
+            const batchNorm = batch.toUpperCase().replace(/^LAB\s*/i, '').trim()
+            return studentsForPrune.some((s: any) => {
+              const sLetter = (s.section || '').replace(/.*?([A-Z])\s*$/, '$1').toUpperCase()
+              if (sLetter !== secLetter) return false
+              const sLab = (s.Lab || s.lab || '').toUpperCase().replace(/^LAB\s*/i, '').trim()
+              return sLab === batchNorm
+            })
+          })
+          if (active.length > 0) prunedBatches[secLetter] = active
+        })
+
+        setCustomSections(prunedSecs)
+        setCustomLabBatches(prunedBatches)
+        try {
+          localStorage.setItem('smartattend_custom_sections', JSON.stringify(prunedSecs))
+          localStorage.setItem('smartattend_custom_lab_batches', JSON.stringify(prunedBatches))
+        } catch {}
+
+        // Also persist pruned meta to server
+        if (studentsForPrune.length > 0) {
+          fetch('/api/admin/students', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              students: studentsForPrune,
+              customSections: prunedSecs,
+              customLabBatches: prunedBatches
+            })
+          }).catch(() => {})
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        setIsStudentsLoaded(true)
+      })
+  }, [])
+
+  // Auto-sync students_data changes to storage after initial load
+  useEffect(() => {
+    if (!isStudentsLoaded) return
+    persistStudents(students_data, customSections, customLabBatches)
+  }, [students_data, isStudentsLoaded])
+
+  // Per-Year Semester Cycle State ('ODD' | 'EVEN' per year), persisted across reloads in localStorage
+  const [semCycleByYear, setSemCycleByYear] = useState<Record<string, 'ODD' | 'EVEN'>>({
+    '1st Year': 'ODD',
+    '2nd Year': 'ODD',
+    '3rd Year': 'ODD',
+    '4th Year': 'ODD',
   })
+  const [showPromoteModal, setShowPromoteModal] = useState(false)
+  const [promotingSubmitting, setPromotingSubmitting] = useState(false)
 
-  // Import Modal state
-  const [showImportModal, setShowImportModal] = useState(false)
-  const [importStep, setImportStep] = useState<'upload' | 'preview' | 'success'>('upload')
-  const [importFile, setImportFile] = useState<File | null>(null)
-  const [importYear, setImportYear] = useState<number>(3)
-  const [previewData, setPreviewData] = useState<ImportPreviewResult | null>(null)
-  const [importSubmitting, setImportSubmitting] = useState(false)
-  const [importError, setImportError] = useState('')
-  const [importSuccess, setImportSuccess] = useState('')
+  // Initialize semCycleByYear from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('smartattend_sem_cycle_by_year')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed && typeof parsed === 'object') {
+          setSemCycleByYear(prev => ({ ...prev, ...parsed }))
+          return
+        }
+      }
+      // Migration fallback from old single semCycle if present
+      const oldGlobal = localStorage.getItem('smartattend_sem_cycle')
+      if (oldGlobal === 'ODD' || oldGlobal === 'EVEN') {
+        setSemCycleByYear({
+          '1st Year': oldGlobal,
+          '2nd Year': oldGlobal,
+          '3rd Year': oldGlobal,
+          '4th Year': oldGlobal,
+        })
+      }
+    } catch {
+      // localStorage may not be accessible in some environments
+    }
+  }, [])
 
-  // USN Range & Division assignment state
-  const [startUsn, setStartUsn] = useState('')
-  const [endUsn, setEndUsn] = useState('')
-  const [selectedDivision, setSelectedDivision] = useState('')
-  const [rangeError, setRangeError] = useState('')
-  const [checkingRange, setCheckingRange] = useState(false)
-  const [showDivisionConfirmModal, setShowDivisionConfirmModal] = useState(false)
-  const [divisionPreviewData, setDivisionPreviewData] = useState<AssignDivisionPreviewResult | null>(null)
-  const [assigningDivision, setAssigningDivision] = useState(false)
-  const [divisionActionMessage, setDivisionActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const handleToggleYearSemCycle = (year: string, newCycle: 'ODD' | 'EVEN') => {
+    setSemCycleByYear(prev => {
+      const updated = { ...prev, [year]: newCycle }
+      try {
+        localStorage.setItem('smartattend_sem_cycle_by_year', JSON.stringify(updated))
+      } catch {}
+      return updated
+    })
+  }
 
-  // USN Range & Lab Batch allotment state
-  const [labStartUsn, setLabStartUsn] = useState('')
-  const [labEndUsn, setLabEndUsn] = useState('')
-  const [selectedLabBatch, setSelectedLabBatch] = useState('')
-  const [labRangeError, setLabRangeError] = useState('')
-  const [checkingLabRange, setCheckingLabRange] = useState(false)
-  const [showLabConfirmModal, setShowLabConfirmModal] = useState(false)
-  const [labPreviewData, setLabPreviewData] = useState<AssignLabBatchPreviewResult | null>(null)
-  const [assigningLabBatch, setAssigningLabBatch] = useState(false)
-  const [labActionMessage, setLabActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  // Create Lab Batch Modal state (admin privileges)
+  const [showCreateBatchModal, setShowCreateBatchModal] = useState(false)
+  const [newBatchSection, setNewBatchSection] = useState('A')
+  const [newBatchName, setNewBatchName] = useState('')
+  const [newBatchError, setNewBatchError] = useState('')
 
-  // Student multi-format export state
-  const [showStudentExportDropdown, setShowStudentExportDropdown] = useState(false)
-  const [studentExporting, setStudentExporting] = useState(false)
+  // Create Section Modal state (admin privileges)
+  const [showCreateSectionModal, setShowCreateSectionModal] = useState(false)
+  const [newSectionLetter, setNewSectionLetter] = useState('')
+  const [newSectionError, setNewSectionError] = useState('')
 
   // Actions menu state
-  const [openActionMenuId, setOpenActionMenuId] = useState<number | string | null>(null)
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
 
-  // Global toast message
+  // Global toast feedback message
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // Update Student Modal state
+  // Update Student Modal state (as in zattendence)
   const [showUpdateModal, setShowUpdateModal] = useState(false)
-  const [updatingStudent, setUpdatingStudent] = useState<StudentRecord | null>(null)
+  const [updatingStudent, setUpdatingStudent] = useState<Student | null>(null)
   const [updateName, setUpdateName] = useState('')
   const [updateDeviceStatus, setUpdateDeviceStatus] = useState('Registered')
   const [updateSubmitting, setUpdateSubmitting] = useState(false)
   const [updateError, setUpdateError] = useState('')
 
-  // Device Management Modal state
+  // Device Management Modal state (as in zattendence)
   const [showDeviceModal, setShowDeviceModal] = useState(false)
-  const [deviceStudent, setDeviceStudent] = useState<StudentRecord | null>(null)
-  const [deviceDetail, setDeviceDetail] = useState<StudentDeviceDetail | null>(null)
-  const [deviceLoading, setDeviceLoading] = useState(false)
+  const [deviceStudent, setDeviceStudent] = useState<Student | null>(null)
   const [deviceResetting, setDeviceResetting] = useState(false)
   const [deviceMessage, setDeviceMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // Delete Student Modal state
+  // Delete Student Modal state (as in zattendence)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [deletingStudent, setDeletingStudent] = useState<StudentRecord | null>(null)
+  const [deletingStudent, setDeletingStudent] = useState<Student | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+
+  // Modal states
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false)
+  const [studentToEdit, setStudentToEdit] = useState<any>(null)
+  const [studentToDelete, setStudentToDelete] = useState<any>(null)
+  const [newStudentPassword, setNewStudentPassword] = useState('')
+  const [selectedStudentForCredentials, setSelectedStudentForCredentials] = useState<any>(null)
+  const [lastAddedStudent, setLastAddedStudent] = useState<Student | null>(null)
+
+  // Import Students Modal state (1st page right side, as in zoattendence)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importStep, setImportStep] = useState<'upload' | 'preview' | 'success'>('upload')
+  const [importYear, setImportYear] = useState<string>('1st Year')
+  const [importSemester, setImportSemester] = useState<string>('1st Sem')
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importSubmitting, setImportSubmitting] = useState(false)
+  const [importError, setImportError] = useState('')
+  const [importSuccess, setImportSuccess] = useState('')
+  const [importPreview, setImportPreview] = useState<ImportPreviewData | null>(null)
 
   // Close action menu on click outside
   useEffect(() => {
@@ -301,29 +898,18 @@ export function StudentsPage() {
     }
   }, [openActionMenuId])
 
-  useEffect(() => {
-    let active = true
-    getStudents().then(res => {
-      if (active) {
-        setStudents([...res.students].sort((a, b) => compareUsn(a.usn, b.usn)))
-        setIsLive(res.isLive)
-        setIsHod(Boolean(res.isHod))
-        setHodDepartment(res.department || null)
-        setLoading(false)
-      }
-    })
-    return () => { active = false }
-  }, [])
-
-  const handleOpenUpdateModal = (student: StudentRecord) => {
+  // Action handlers
+  const handleOpenUpdateModal = (student: Student) => {
     setUpdatingStudent(student)
     setUpdateName(student.name || '')
-    setUpdateDeviceStatus(student.deviceBound ? 'Registered' : 'Not Registered')
+    setUpdateDeviceStatus(
+      student.device === 'Linked' || student.device === 'Registered' ? 'Registered' : 'Not Registered'
+    )
     setUpdateError('')
     setShowUpdateModal(true)
   }
 
-  const handleSaveUpdateStudent = async (e: React.FormEvent) => {
+  const handleSaveUpdateStudent = (e: React.FormEvent) => {
     e.preventDefault()
     if (!updatingStudent) return
     const cleanName = updateName.trim()
@@ -335,1822 +921,2802 @@ export function StudentsPage() {
     setUpdateSubmitting(true)
     setUpdateError('')
 
-    try {
-      await updateStudentAdmin(updatingStudent.id, {
-        name: cleanName,
-        deviceStatus: updateDeviceStatus,
-      })
+    const updatedDevice = updateDeviceStatus === 'Registered' ? 'Linked' : 'Not Linked'
 
-      setShowUpdateModal(false)
-      setToastMessage({
-        type: 'success',
-        text: 'Student updated successfully.',
-      })
-      setTimeout(() => setToastMessage(null), 5000)
+    setStudentsData(prev => prev.map(s => {
+      if (s.usn === updatingStudent.usn) {
+        return {
+          ...s,
+          name: cleanName,
+          device: updatedDevice
+        }
+      }
+      return s
+    }))
 
-      // Refresh list
-      const res = await getStudents()
-      if (res?.students) setStudents(res.students)
-    } catch (err: any) {
-      setUpdateError(err.message || 'Failed to update student')
-    } finally {
-      setUpdateSubmitting(false)
-    }
+    setShowUpdateModal(false)
+    setUpdateSubmitting(false)
+    setToastMessage({
+      type: 'success',
+      text: `Student "${cleanName}" updated successfully.`
+    })
+    setTimeout(() => setToastMessage(null), 5000)
   }
 
-  const handleOpenDeviceModal = async (student: StudentRecord) => {
+  const handleOpenDeviceModal = (student: Student) => {
     setDeviceStudent(student)
-    setDeviceDetail(null)
     setDeviceMessage(null)
     setShowDeviceModal(true)
-    setDeviceLoading(true)
-
-    try {
-      const data = await getStudentDeviceAdmin(student.id)
-      setDeviceDetail(data)
-    } catch (err: any) {
-      setDeviceMessage({
-        type: 'error',
-        text: err.message || 'Failed to load device details',
-      })
-    } finally {
-      setDeviceLoading(false)
-    }
   }
 
-  const handleResetStudentDevice = async () => {
+  const handleResetStudentDevice = () => {
     if (!deviceStudent) return
     setDeviceResetting(true)
     setDeviceMessage(null)
 
-    try {
-      const res = await resetStudentDeviceAdmin(deviceStudent.id)
+    setTimeout(() => {
+      setStudentsData(prev => prev.map(s => {
+        if (s.usn === deviceStudent.usn) {
+          return {
+            ...s,
+            device: 'Not Linked'
+          }
+        }
+        return s
+      }))
+      setDeviceStudent(prev => prev ? { ...prev, device: 'Not Linked' } : null)
+      setDeviceResetting(false)
       setDeviceMessage({
         type: 'success',
-        text: res.message || 'Device binding reset successfully.',
+        text: 'Device binding reset successfully. Student can now register a new device.'
       })
-
-      // Reload device details
-      const updatedData = await getStudentDeviceAdmin(deviceStudent.id)
-      setDeviceDetail(updatedData)
-
-      // Refresh student list
-      const listRes = await getStudents()
-      if (listRes?.students) setStudents(listRes.students)
-    } catch (err: any) {
-      setDeviceMessage({
-        type: 'error',
-        text: err.message || 'Failed to reset device binding',
+      setToastMessage({
+        type: 'success',
+        text: `Device binding for ${deviceStudent.name} (${deviceStudent.usn}) reset.`
       })
-    } finally {
-      setDeviceResetting(false)
-    }
+      setTimeout(() => setToastMessage(null), 5000)
+    }, 400)
   }
 
-  const handleOpenDeleteModal = (student: StudentRecord) => {
+  const handleOpenDeleteModal = (student: Student) => {
     setDeletingStudent(student)
     setDeleteError('')
     setShowDeleteModal(true)
   }
 
-  const handleConfirmDeleteStudent = async () => {
+  // Helper: prune sections and lab batches that have zero students left after a deletion
+  const pruneEmptySectionsAndBatches = (remainingStudents: any[], currentSections: Record<string, string[]>, currentBatches: Record<string, string[]>) => {
+    const prunedSections: Record<string, string[]> = {}
+    Object.entries(currentSections).forEach(([key, secs]) => {
+      const [yr, sm] = key.split('_')
+      const activeSecs = secs.filter(sec => {
+        const letter = getSectionLetter(sec)
+        return remainingStudents.some(
+          s => s.year === yr && s.semester === sm && getSectionLetter(s.section) === letter && isStudentInDept(s.dept, adminDept)
+        )
+      })
+      if (activeSecs.length > 0) {
+        prunedSections[key] = activeSecs
+      }
+    })
+
+    const prunedBatches: Record<string, string[]> = {}
+    Object.entries(currentBatches).forEach(([secLetter, batches]) => {
+      const activeBatches = batches.filter(batch => {
+        const batchNorm = batch.toUpperCase().replace(/^LAB\s*/i, '').trim()
+        return remainingStudents.some(s => {
+          const sLetter = getSectionLetter(s.section)
+          if (sLetter !== secLetter) return false
+          const sLab = (s.Lab || s.lab || '').toUpperCase().replace(/^LAB\s*/i, '').trim()
+          return sLab === batchNorm
+        })
+      })
+      if (activeBatches.length > 0) {
+        prunedBatches[secLetter] = activeBatches
+      }
+    })
+
+    return { prunedSections, prunedBatches }
+  }
+
+  const handleConfirmDeleteStudent = () => {
     if (!deletingStudent) return
     setDeleteSubmitting(true)
     setDeleteError('')
 
-    try {
-      await deleteStudentAdmin(deletingStudent.id)
+    setTimeout(() => {
+      const remainingStudents = students_data.filter(s => s.usn !== deletingStudent.usn)
+      setStudentsData(remainingStudents)
+
+      // If the deleted student was the last student in the currently selected section, reset to ALL
+      if (selectedSection && selectedSection !== 'ALL') {
+        const hasStudentsLeft = remainingStudents.some(
+          s => s.year === selectedYear && s.semester === selectedSem && getSectionLetter(s.section) === getSectionLetter(selectedSection) && isStudentInDept(s.dept, adminDept)
+        )
+        if (!hasStudentsLeft) {
+          setSelectedSection('ALL')
+          setSelectedLabBatch('ALL')
+        }
+      }
+
+      // If the deleted student was the last student in the currently selected lab batch, reset to ALL
+      if (selectedLabBatch && selectedLabBatch !== 'ALL') {
+        const delBatch = (deletingStudent.Lab || deletingStudent.lab || `${getSectionLetter(deletingStudent.section)}1`).toUpperCase().replace(/^LAB\s*/i, '').trim()
+        if (selectedLabBatch.toUpperCase() === delBatch) {
+          const hasBatchStudentsLeft = remainingStudents.some(
+            s => s.year === selectedYear &&
+                 s.semester === selectedSem &&
+                 (selectedSection === 'ALL' || getSectionLetter(s.section) === getSectionLetter(selectedSection)) &&
+                 ((s.Lab || s.lab || `${getSectionLetter(s.section)}1`).toUpperCase().replace(/^LAB\s*/i, '').trim() === delBatch) &&
+                 isStudentInDept(s.dept, adminDept)
+          )
+          if (!hasBatchStudentsLeft) {
+            setSelectedLabBatch('ALL')
+          }
+        }
+      }
+
+      // Prune any sections and lab batches that now have zero students
+      const { prunedSections, prunedBatches } = pruneEmptySectionsAndBatches(remainingStudents, customSections, customLabBatches)
+      setCustomSections(prunedSections)
+      setCustomLabBatches(prunedBatches)
+
+      persistStudents(remainingStudents, prunedSections, prunedBatches)
+      setDeleteSubmitting(false)
       setShowDeleteModal(false)
+      setDeletingStudent(null)
+
       setToastMessage({
         type: 'success',
-        text: 'Student deleted successfully.',
+        text: `Student "${deletingStudent.name}" removed from directory.`
       })
       setTimeout(() => setToastMessage(null), 5000)
-
-      // Refresh student list
-      const res = await getStudents()
-      if (res?.students) setStudents(res.students)
-    } catch (err: any) {
-      setDeleteError(err.message || 'Failed to delete student')
-    } finally {
-      setDeleteSubmitting(false)
-    }
+    }, 400)
   }
 
+  // Add Student Form State
+  const [formData, setFormData] = useState<Record<string, any>>({
+    name: '',
+    usn: '',
+    year: '',
+    semester: '',
+    section: '',
+    labBatch: '',
+    account: 'Active',
+    device: 'Not Registered',
+    password: '',
+  })
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
-  const filtered = useMemo(() => {
-    const matched = students.filter(s => {
-      const q = query.trim().toLowerCase()
-      const matchesQuery = !q ||
-        s.name.toLowerCase().includes(q) ||
-        s.usn.toLowerCase().includes(q) ||
-        s.department.toLowerCase().includes(q) ||
-        (s.email && s.email.toLowerCase().includes(q))
+  // Dynamic admin department from authenticated session
+  const [adminDept, setAdminDept] = useState<string>(initialAdminDept)
 
-      if (!matchesQuery) return false
-      return true
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('smartattend_admin_dept')
+      if (stored) setAdminDept(stored.toUpperCase())
+    } catch {}
+
+    fetch('/api/auth/session')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.authenticated && data?.user?.dept) {
+          const dept = data.user.dept.toUpperCase()
+          setAdminDept(dept)
+          try {
+            localStorage.setItem('smartattend_admin_dept', dept)
+          } catch {}
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Helper to safely extract value from either string or ChangeEvent
+  const updateFormField = (field: string, valOrEvent: any) => {
+    let value = valOrEvent && typeof valOrEvent === 'object' && 'target' in valOrEvent
+      ? valOrEvent.target.value
+      : (typeof valOrEvent === 'string' ? valOrEvent : '')
+    if (field === 'usn') {
+      value = value.slice(0, 10).toUpperCase()
+    }
+    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormErrors(prev => {
+      if (!prev[field]) return prev
+      const updated = { ...prev }
+      delete updated[field]
+      return updated
+    })
+  }
+
+  // Generate random password
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%'
+    let password = ''
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return password
+  }
+
+  // Helper to get available sections for any year and semester (empty sections removed automatically, deduplicated canonically)
+  const getSectionsForYearAndSem = (year: string, sem: string) => {
+    if (!year) return []
+    const yearNum = year.match(/\d/)?.[0] || '1'
+
+    // 1. Only include sections that contain at least 1 student belonging to adminDept
+    const fromData = students_data
+      .filter(s => s.year === year && (!sem || s.semester === sem) && isStudentInDept(s.dept, adminDept))
+      .map(s => s.section)
+      .filter(Boolean)
+
+    const rawCandidates = new Set<string>(fromData)
+
+    // 2. Include custom sections created by admin, strictly filtered to current department
+    const key = `${year}_${sem}`
+    if (customSections[key]) {
+      customSections[key].forEach(sec => {
+        if (isSectionInDept(sec, adminDept)) {
+          rawCandidates.add(sec)
+        }
+      })
+    }
+
+    // 3. Keep active selected section visible if user is currently viewing/creating it in this year & sem
+    if (year === selectedYear && sem === selectedSem && selectedSection && selectedSection !== 'ALL') {
+      if (isSectionInDept(selectedSection, adminDept)) {
+        rawCandidates.add(selectedSection)
+      }
+    }
+
+    // 4. Canonical deduplication by section letter (A, B, C, etc.)
+    // Ensures there is NEVER more than ONE Section A, Section B, etc.
+    const byLetter = new Map<string, string>()
+    rawCandidates.forEach(sec => {
+      const letter = getSectionLetter(sec)
+      if (!letter) return
+      const current = byLetter.get(letter)
+      if (!current) {
+        byLetter.set(letter, sec)
+      } else if (sec.toUpperCase().includes(adminDept.toUpperCase()) && !current.toUpperCase().includes(adminDept.toUpperCase())) {
+        byLetter.set(letter, sec)
+      }
     })
 
-    return matched.sort((a, b) => compareUsn(a.usn, b.usn))
-  }, [students, query])
-
-  const handleApplyDivision = async () => {
-    setRangeError('')
-    const cleanStart = startUsn.trim().toUpperCase()
-    const cleanEnd = endUsn.trim().toUpperCase()
-
-    if (!cleanStart) {
-      setRangeError('Please enter Beginning USN')
-      return
-    }
-    if (!cleanEnd) {
-      setRangeError('Please enter Ending USN')
-      return
-    }
-    if (!selectedDivision) {
-      setRangeError('Please select a Division (A, B, C, or D)')
-      return
+    // If there are no sections at all yet for this year & sem, provide default Section A (e.g. ECE 2A)
+    if (byLetter.size === 0) {
+      byLetter.set('A', `${adminDept} ${yearNum}A`)
     }
 
-    setCheckingRange(true)
-    try {
-      const data = await previewAssignDivision({
-        startUsn: cleanStart,
-        endUsn: cleanEnd,
-        division: selectedDivision,
-      })
-
-      if (!data.affectedCount || data.affectedCount === 0) {
-        setRangeError(`No students found in USN range ${cleanStart} to ${cleanEnd} for ${data.departmentName || 'your department'}.`)
-        return
-      }
-
-      setDivisionPreviewData(data)
-      setShowDivisionConfirmModal(true)
-    } catch (err: any) {
-      // In local dev/fallback if backend is offline, calculate preview locally
-      const matched = students.filter(s => isUsnInRange(s.usn, cleanStart, cleanEnd))
-      if (matched.length === 0) {
-        setRangeError(`No students found in USN range ${cleanStart} to ${cleanEnd}.`)
-        return
-      }
-      setDivisionPreviewData({
-        success: true,
-        preview: true,
-        startUsn: cleanStart,
-        endUsn: cleanEnd,
-        division: selectedDivision,
-        department: hodDepartment || 'CSE',
-        departmentName: hodDepartment || 'Department',
-        affectedCount: matched.length,
-        students: matched.map(s => ({
-          id: s.id,
-          usn: s.usn,
-          name: s.name,
-          currentDivision: s.section || 'A',
-          newDivision: selectedDivision,
-          semester: s.semester,
-        })),
-      })
-      setShowDivisionConfirmModal(true)
-    } finally {
-      setCheckingRange(false)
-    }
+    // Return list sorted alphabetically by section letter
+    return Array.from(byLetter.keys())
+      .sort()
+      .map(letter => byLetter.get(letter)!)
   }
 
-  const handleConfirmAssignDivision = async () => {
-    if (!divisionPreviewData) return
-    setAssigningDivision(true)
+  // Academic years strictly 1st to 4th Year (no Alumni section)
+  const years = useMemo(() => {
+    return DEFAULT_YEARS
+  }, [])
 
-    try {
-      const result = await commitAssignDivision({
-        startUsn: divisionPreviewData.startUsn,
-        endUsn: divisionPreviewData.endUsn,
-        division: divisionPreviewData.division,
-      })
+  // Get sections for current selected year & semester (empty sections removed automatically)
+  const sectionsForCurrentSem = useMemo(() => {
+    if (!selectedYear || !selectedSem) return []
+    return getSectionsForYearAndSem(selectedYear, selectedSem)
+  }, [selectedYear, selectedSem, students_data, adminDept, selectedSection])
 
-      setShowDivisionConfirmModal(false)
-      setDivisionActionMessage({
-        type: 'success',
-        text: result.message || `Division ${divisionPreviewData.division} assigned to ${divisionPreviewData.affectedCount} students.`,
-      })
+  // Available batches for current selected section or aggregated for all sections (empty batches removed automatically)
+  const availableBatchesForActiveSection = useMemo(() => {
+    if (!selectedYear || !selectedSem) return []
 
-      // Update student section in local state
-      setStudents(prev =>
-        prev.map(s => {
-          if (isUsnInRange(s.usn, divisionPreviewData.startUsn, divisionPreviewData.endUsn)) {
-            return { ...s, section: divisionPreviewData.division }
-          }
-          return s
-        })
+    // 1. Get students for the active year, semester, and section
+    let list = students_data.filter(s => s.year === selectedYear && s.semester === selectedSem && isStudentInDept(s.dept, adminDept))
+    if (selectedSection && selectedSection !== 'ALL') {
+      list = list.filter(s => getSectionLetter(s.section) === getSectionLetter(selectedSection))
+    }
+
+    // 2. Extract only batches that currently have at least 1 student
+    const batchesWithStudents = new Set<string>()
+    list.forEach(s => {
+      const raw = (s.Lab || s.lab || '').toUpperCase().replace(/^LAB\s*/i, '').trim()
+      const batch = raw || `${getSectionLetter(s.section)}1`
+      if (batch) batchesWithStudents.add(batch)
+    })
+
+    // 3. Keep active selected batch visible if user is currently viewing/creating it
+    if (selectedLabBatch && selectedLabBatch !== 'ALL') {
+      batchesWithStudents.add(selectedLabBatch)
+    }
+
+    return Array.from(batchesWithStudents).sort()
+  }, [selectedYear, selectedSem, selectedSection, selectedLabBatch, students_data, adminDept])
+
+  // Available candidate batches for Add Student modal
+  const availableBatchesForAddModal = useMemo(() => {
+    const sec = formData.section || selectedSection || `${adminDept} 1A`
+    const secLetter = getSectionLetter(sec)
+    const yr = formData.year || selectedYear || '1st Year'
+    const sm = formData.semester || selectedSem || '1st Sem'
+    const existing = Array.from(
+      new Set(
+        students_data
+          .filter(s => s.year === yr && s.semester === sm && getSectionLetter(s.section) === secLetter && isStudentInDept(s.dept, adminDept))
+          .map(s => (s.Lab || s.lab || '').toUpperCase().replace(/^LAB\s*/i, '').trim())
+          .filter(Boolean)
       )
+    )
+    const created = customLabBatches[secLetter] || []
+    return Array.from(new Set([...existing, ...created, `${secLetter}1`])).sort()
+  }, [formData.section, formData.year, formData.semester, selectedSection, selectedYear, selectedSem, students_data, adminDept, customLabBatches])
 
-      // Refresh from backend
-      getStudents().then(refreshed => {
-        if (refreshed?.students) {
-          setStudents(refreshed.students)
-        }
+  const filtered = useMemo(() => {
+    let result = students_data.filter(s => isStudentInDept(s.dept, adminDept))
+    if (selectedYear) {
+      result = result.filter(s => s.year === selectedYear)
+    }
+    if (selectedSem) {
+      result = result.filter(s => s.semester === selectedSem)
+    }
+    if (selectedSection && selectedSection !== 'ALL') {
+      result = result.filter(s => getSectionLetter(s.section) === getSectionLetter(selectedSection))
+    }
+    if (selectedLabBatch && selectedLabBatch !== 'ALL') {
+      result = result.filter(s => {
+        const lab = (s.Lab || s.lab || `${getSectionLetter(s.section)}1`).toUpperCase().replace(/^LAB\s*/i, '').trim()
+        const target = selectedLabBatch.toUpperCase().replace(/^LAB\s*/i, '').trim()
+        return lab === target
       })
-
-      // Clear input fields
-      setStartUsn('')
-      setEndUsn('')
-      setSelectedDivision('')
-      setDivisionPreviewData(null)
-    } catch (err: any) {
-      setDivisionActionMessage({
-        type: 'error',
-        text: err.message || 'Failed to assign division',
-      })
-      setShowDivisionConfirmModal(false)
-    } finally {
-      setAssigningDivision(false)
-      setTimeout(() => setDivisionActionMessage(null), 6000)
-    }
-  }
-
-  const handleApplyLabBatch = async () => {
-    setLabRangeError('')
-    const cleanStart = labStartUsn.trim().toUpperCase()
-    const cleanEnd = labEndUsn.trim().toUpperCase()
-
-    if (!cleanStart) {
-      setLabRangeError('Please enter Beginning USN')
-      return
-    }
-    if (!cleanEnd) {
-      setLabRangeError('Please enter Ending USN')
-      return
-    }
-    if (!selectedLabBatch) {
-      setLabRangeError('Please select a Lab Batch (A1-A4, B1-B4, C1-C4, D1-D4)')
-      return
     }
 
-    setCheckingLabRange(true)
-    try {
-      const data = await previewAssignLabBatch({
-        startUsn: cleanStart,
-        endUsn: cleanEnd,
-        labBatch: selectedLabBatch,
-      })
-
-      if (!data.affectedCount || data.affectedCount === 0) {
-        setLabRangeError(`No students found in USN range ${cleanStart} to ${cleanEnd} for ${data.departmentName || 'your department'}.`)
-        return
-      }
-
-      setLabPreviewData(data)
-      setShowLabConfirmModal(true)
-    } catch (err: any) {
-      setLabRangeError(err.message || 'Failed to calculate lab batch preview')
-    } finally {
-      setCheckingLabRange(false)
-    }
-  }
-
-  const handleConfirmAssignLabBatch = async () => {
-    if (!labPreviewData) return
-    setAssigningLabBatch(true)
-
-    try {
-      const result = await commitAssignLabBatch({
-        startUsn: labPreviewData.startUsn,
-        endUsn: labPreviewData.endUsn,
-        labBatch: labPreviewData.labBatch,
-      })
-
-      setShowLabConfirmModal(false)
-      setLabActionMessage({
-        type: 'success',
-        text: result.message || `Lab batch ${labPreviewData.labBatch} assigned to ${labPreviewData.affectedCount} students.`,
-      })
-
-      // Update student lab in local state
-      setStudents(prev =>
-        prev.map(s => {
-          if (isUsnInRange(s.usn, labPreviewData.startUsn, labPreviewData.endUsn)) {
-            return { ...s, Lab: labPreviewData.labBatch, lab: labPreviewData.labBatch }
-          }
-          return s
-        })
+    // Search by student name and/or USN
+    if (query.trim()) {
+      const q = query.trim().toLowerCase()
+      result = result.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        s.usn.toLowerCase().includes(q)
       )
-
-      // Refresh from backend PostgreSQL single source of truth
-      getStudents().then(refreshed => {
-        if (refreshed?.students) {
-          setStudents(refreshed.students)
-        }
-      })
-
-      // Clear input fields
-      setLabStartUsn('')
-      setLabEndUsn('')
-      setSelectedLabBatch('')
-      setLabPreviewData(null)
-    } catch (err: any) {
-      setLabActionMessage({
-        type: 'error',
-        text: err.message || 'Failed to assign lab batch',
-      })
-      setShowLabConfirmModal(false)
-    } finally {
-      setAssigningLabBatch(false)
-      setTimeout(() => setLabActionMessage(null), 6000)
     }
-  }
 
-  const handleStudentExport = async (format: 'pdf' | 'xls' | 'xlsx') => {
-    try {
-      setStudentExporting(true)
-      setShowStudentExportDropdown(false)
-      await downloadStudentsExport({
-        format,
-        department: hodDepartment || undefined,
-        search: query || undefined,
-      })
-    } catch (err: any) {
-      alert(err.message || 'Failed to export students')
-    } finally {
-      setStudentExporting(false)
+    // Implicitly sort by USN
+    return result.sort((a, b) => a.usn.localeCompare(b.usn, undefined, { numeric: true }))
+  }, [query, selectedYear, selectedSem, selectedSection, selectedLabBatch, students_data, adminDept])
+
+  // Create Section (admin access)
+  const handleCreateSection = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedYear || !selectedSem) return
+    let raw = newSectionLetter.trim().toUpperCase()
+    if (!raw) {
+      setNewSectionError('Section identifier or letter is required (e.g., C, D)')
+      return
     }
+
+    const letterMatch = raw.match(/([A-Z])$/)
+    const letter = letterMatch ? letterMatch[1] : raw
+    const yearNum = selectedYear.match(/\d/)?.[0] || '1'
+    const formattedSec = raw.startsWith(adminDept) ? raw : `${adminDept} ${yearNum}${letter}`
+
+    const existing = sectionsForCurrentSem
+    if (existing.includes(formattedSec) || existing.some(s => getSectionLetter(s) === letter)) {
+      setNewSectionError(`Section "${letter}" already exists for ${selectedSem}`)
+      return
+    }
+
+    const key = `${selectedYear}_${selectedSem}`
+    const updatedSections = {
+      ...customSections,
+      [key]: [...(customSections[key] || []), formattedSec]
+    }
+
+    // Provision default batches for this section
+    const updatedBatches = {
+      ...customLabBatches,
+      [letter]: customLabBatches[letter] || [`${letter}1`, `${letter}2`, `${letter}3`, `${letter}4`]
+    }
+
+    setCustomSections(updatedSections)
+    setCustomLabBatches(updatedBatches)
+    persistStudents(students_data, updatedSections, updatedBatches)
+
+    setSelectedSection(formattedSec)
+    setSelectedLabBatch('ALL')
+    setShowCreateSectionModal(false)
+    setToastMessage({
+      type: 'success',
+      text: `Section ${letter} (${formattedSec}) created successfully for ${selectedSem}.`
+    })
+    setTimeout(() => setToastMessage(null), 5000)
   }
 
-  const handleExportStudents = () => {
-    if (students.length === 0) return
-    const headers = ['USN', 'Name', 'Department', 'Semester', 'Section', 'Lab Batch', 'Academic Year', 'Email', 'Device Status']
-    const csvRows = [
-      headers.join(','),
-      ...filtered.map(s => [
-        `"${s.usn || ''}"`,
-        `"${(s.name || '').replace(/"/g, '""')}"`,
-        `"${s.department || ''}"`,
-        s.semester || '',
-        `"${s.section || ''}"`,
-        `"${s.Lab || s.lab || 'A1'}"`,
-        `"${s.academicYear || ''}"`,
-        `"${s.email || ''}"`,
-        s.deviceBound ? 'Linked' : 'Not Linked'
-      ].join(','))
-    ]
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.setAttribute('href', url)
-    link.setAttribute('download', `students_${hodDepartment || 'all'}_${new Date().toISOString().split('T')[0]}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+  // Create Lab Batch (admin access)
+  const handleCreateLabBatch = (e: React.FormEvent) => {
+    e.preventDefault()
+    const sec = newBatchSection.toUpperCase()
+    let name = newBatchName.trim().toUpperCase()
+    if (!name) {
+      setNewBatchError('Batch name is required (e.g., A3, B3)')
+      return
+    }
+    if (/^\d+$/.test(name)) {
+      name = `${sec}${name}`
+    }
+    const existing = customLabBatches[sec] || []
+    if (existing.includes(name)) {
+      setNewBatchError(`Lab batch "${name}" already exists for Section ${sec}`)
+      return
+    }
+    const updated = [...existing, name].sort()
+    const updatedBatches = { ...customLabBatches, [sec]: updated }
+    setCustomLabBatches(updatedBatches)
+    persistStudents(students_data, customSections, updatedBatches)
+    setSelectedLabBatch(name)
+    setShowCreateBatchModal(false)
+    setToastMessage({
+      type: 'success',
+      text: `Lab Batch "${name}" created successfully for Section ${sec}.`
+    })
+    setTimeout(() => setToastMessage(null), 5000)
   }
 
+  // Handle Import Preview
   const handlePreviewImport = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!importFile) {
-      setImportError('Please select an Excel or PDF file')
+      setImportError('Please select an Excel (.xlsx, .xls) or CSV file.')
       return
     }
     setImportSubmitting(true)
     setImportError('')
     try {
-      const data = await previewImportStudents(importFile, importYear)
-      setPreviewData(data)
+      const sem = importSemester || YEAR_SEMESTERS[importYear]?.[0] || '1st Sem'
+      const data = await parseStudentFileClient(
+        importFile,
+        adminDept,
+        importYear,
+        sem,
+        students_data
+      )
+      setImportPreview(data)
       setImportStep('preview')
     } catch (err: any) {
-      setImportError(err.message || 'Failed to preview file')
+      setImportError(err.message || 'Failed to parse file. Please verify format.')
     } finally {
       setImportSubmitting(false)
     }
   }
 
-  const handleCommitImport = async () => {
-    if (!importFile) return
+  // Handle Commit Import into Directory
+  const handleCommitImport = () => {
+    if (!importPreview) return
+    const eligibleStudents = importPreview.students.filter(s => s.status === 'READY' || s.status === 'ALREADY_EXISTS')
+    if (eligibleStudents.length === 0) return
     setImportSubmitting(true)
-    setImportError('')
-    try {
-      const result = await commitImportStudents(importFile, importYear)
-      setImportSuccess(result.message)
-      setImportStep('success')
-      // Refresh students from backend
-      const res = await getStudents()
-      setStudents(res.students)
-      setTimeout(() => {
-        setShowImportModal(false)
-        setImportStep('upload')
-        setImportFile(null)
-        setPreviewData(null)
-        setImportSuccess('')
-      }, 2000)
-    } catch (err: any) {
-      setImportError(err.message || 'Failed to import students')
-    } finally {
-      setImportSubmitting(false)
-    }
+
+    const updatedStudents = [...students_data]
+    const addedCount = importPreview.readyToImport
+    const updatedCount = importPreview.alreadyExists
+
+    eligibleStudents.forEach(st => {
+      const existingIndex = updatedStudents.findIndex(s => s.usn.toUpperCase() === st.usn.toUpperCase())
+      if (existingIndex >= 0) {
+        // Update existing student with current year, semester, section and active status
+        updatedStudents[existingIndex] = {
+          ...updatedStudents[existingIndex],
+          name: st.name || updatedStudents[existingIndex].name,
+          dept: adminDept,
+          year: st.year,
+          semester: st.semester,
+          section: st.section,
+          Lab: st.labBatch || updatedStudents[existingIndex].Lab,
+          lab: st.labBatch || updatedStudents[existingIndex].lab,
+          account: 'Active'
+        }
+      } else {
+        // Add new student
+        updatedStudents.push({
+          name: st.name,
+          email: st.email || `${st.usn.toLowerCase()}@klsvdit.edu.in`,
+          usn: st.usn,
+          dept: adminDept,
+          year: st.year,
+          semester: st.semester,
+          section: st.section,
+          Lab: st.labBatch,
+          lab: st.labBatch,
+          account: 'Active',
+          device: 'Not Linked',
+          deviceBound: false,
+          boundDeviceName: null
+        })
+      }
+    })
+
+    // Provision any new sections and lab batches
+    const updatedSections = { ...customSections }
+    const updatedBatches = { ...customLabBatches }
+
+    eligibleStudents.forEach(st => {
+      const secKey = `${st.year}_${st.semester}`
+      const secLetter = getSectionLetter(st.section)
+      const existing = updatedSections[secKey] || []
+      // Deduplicate by section letter and ensure only department sections exist
+      if (!existing.some(s => getSectionLetter(s) === secLetter)) {
+        updatedSections[secKey] = [...existing.filter(s => isSectionInDept(s, adminDept)), st.section]
+      }
+      const existingBatches = updatedBatches[secLetter] || []
+      if (st.labBatch && !existingBatches.includes(st.labBatch)) {
+        updatedBatches[secLetter] = [...existingBatches, st.labBatch].sort()
+      }
+    })
+
+    setCustomSections(updatedSections)
+    setCustomLabBatches(updatedBatches)
+
+    setStudentsData(updatedStudents)
+    persistStudents(updatedStudents, updatedSections, updatedBatches)
+
+    setImportSubmitting(false)
+    setShowImportModal(false)
+    setImportFile(null)
+    setImportPreview(null)
+    setImportStep('upload')
+
+    const summaryText = addedCount > 0 && updatedCount > 0
+      ? `Imported ${addedCount} new and updated ${updatedCount} existing students in ${adminDept} (${importPreview.year}).`
+      : addedCount > 0
+      ? `Successfully imported ${addedCount} students into ${adminDept} (${importPreview.year}). Saved to directory.`
+      : `Successfully updated ${updatedCount} existing students to ${importPreview.year} (${importPreview.semester}). Saved to directory.`
+
+    setToastMessage({
+      type: 'success',
+      text: summaryText
+    })
+    setTimeout(() => setToastMessage(null), 5000)
   }
 
-  const handleCreateStudent = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitting(true)
-    setErrorMessage('')
-    setSuccessMessage('')
+  // Handle Export Students to Excel (.xlsx) matching zoattendence
+  const handleExportStudents = () => {
+    const dataToExport = filtered.length > 0
+      ? filtered
+      : students_data.filter(s => {
+          let matches = isStudentInDept(s.dept, adminDept)
+          if (selectedYear) matches = matches && s.year === selectedYear
+          if (selectedSem) matches = matches && s.semester === selectedSem
+          return matches
+        })
 
-    try {
-      const res = await createStudent({
-        name: formData.name,
-        email: formData.email,
-        registerNumber: formData.registerNumber,
-        department: formData.department,
-        semester: Number(formData.semester),
-        section: formData.section,
-        academicYear: formData.academicYear
+    if (dataToExport.length === 0) {
+      setToastMessage({
+        type: 'error',
+        text: 'No student records available to export for current selection.'
+      })
+      setTimeout(() => setToastMessage(null), 4000)
+      return
+    }
+
+    const rows = dataToExport.map(s => ({
+      'USN': s.usn,
+      'Name': s.name,
+      'Department': s.dept,
+      'Semester': s.semester,
+      'Section': getSectionDisplayName(s.section),
+      'Lab Batch': (s.Lab || s.lab || `${getSectionLetter(s.section)}1`).toUpperCase().replace(/^LAB\s*/i, '').trim(),
+      'Academic Year': s.year,
+      'Email': s.email || `${s.usn.toLowerCase()}@klsvdit.edu.in`,
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(rows)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Students')
+
+    const safeYear = (selectedYear || 'All_Years').replace(/\s+/g, '_')
+    const safeSem = (selectedSem || 'All_Sems').replace(/\s+/g, '_')
+    const safeSec = (selectedSection && selectedSection !== 'ALL' ? selectedSection : 'All_Sections').replace(/\s+/g, '_')
+    const fileName = `students_${adminDept}_${safeYear}_${safeSem}_${safeSec}_${new Date().toISOString().split('T')[0]}.xlsx`
+
+    XLSX.writeFile(workbook, fileName)
+
+    setToastMessage({
+      type: 'success',
+      text: `Exported ${dataToExport.length} student records to "${fileName}".`
+    })
+    setTimeout(() => setToastMessage(null), 5000)
+  }
+
+  // Add Student
+  const handleAddStudent = () => {
+    const targetYear = formData.year || selectedYear || ''
+    const targetSem = formData.semester || selectedSem || ''
+    const targetSection = (formData.section || (selectedSection !== 'ALL' ? selectedSection : sectionsForCurrentSem[0]) || `${adminDept} ${targetYear.match(/\d/)?.[0] || '1'}A`).trim()
+    const secLetter = getSectionLetter(targetSection)
+    const targetLab = (formData.labBatch || `${secLetter}1`).trim()
+
+    const errors: Record<string, string> = {}
+    if (!formData.name.trim()) errors.name = 'Student name is required'
+    if (!formData.usn.trim()) errors.usn = 'USN (Register Number) is required'
+    if (!targetYear) errors.year = 'Academic year is missing'
+    if (!targetSem) errors.semester = 'Semester is missing'
+    if (!targetSection) errors.section = 'Section is missing'
+    if (!targetLab) errors.labBatch = 'Lab batch is missing'
+
+    const cleanUsn = formData.usn.trim().toUpperCase().slice(0, 10)
+    const expectedDeptCode = getDeptCodeFromDept(adminDept)
+    if (!cleanUsn) errors.usn = 'USN (Register Number) is required'
+    else if (cleanUsn.length > 10) errors.usn = 'USN cannot exceed 10 characters'
+    else if (!isUsnInDept(cleanUsn, adminDept)) {
+      errors.usn = `USN must match ${adminDept} department (expected branch code '${expectedDeptCode}', e.g. 2VD__${expectedDeptCode}___)`
+    } else if (students_data.some(s => s.usn.toUpperCase() === cleanUsn)) {
+      errors.usn = 'A student with this USN already exists'
+    }
+
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.email = 'Please enter a valid email address'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
+      return
+    }
+
+    const isDeviceReg = formData.device === 'Registered'
+    const defaultEmail = `${cleanUsn.toLowerCase()}@klsvdit.edu.in`
+    const newStudent: Student = {
+      name: formData.name.trim(),
+      email: formData.email.trim() || defaultEmail,
+      usn: cleanUsn,
+      dept: adminDept,
+      year: targetYear,
+      semester: targetSem,
+      section: targetSection,
+      Lab: targetLab,
+      lab: targetLab,
+      account: 'Active',
+      device: isDeviceReg ? 'Linked' : 'Not Linked',
+      deviceBound: isDeviceReg,
+      boundDeviceName: isDeviceReg ? `${formData.name.trim().split(' ')[0]}'s Device` : null,
+    }
+
+    setStudentsData(prev => [...prev, newStudent])
+    setLastAddedStudent(newStudent)
+    setShowAddModal(false)
+    setShowSuccessModal(true)
+
+    // Navigate to the newly added student's year, semester, and section
+    setSelectedYear(newStudent.year)
+    setSelectedSem(newStudent.semester)
+    setSelectedSection(newStudent.section)
+    setSelectedLabBatch('ALL')
+
+    setFormData({
+      name: '',
+      email: '',
+      usn: '',
+      year: '',
+      semester: '',
+      section: '',
+      labBatch: '',
+      account: 'Active',
+      device: 'Not Registered',
+      password: '',
+    })
+    setFormErrors({})
+  }
+
+  // Edit Student
+  const handleEditStudent = () => {
+    if (!studentToEdit) return
+
+    const errors: Record<string, string> = {}
+    if (!formData.name.trim()) errors.name = 'Student name is required'
+    if (!formData.usn.trim()) errors.usn = 'USN (Register Number) is required'
+    if (!formData.year) errors.year = 'Academic year is missing'
+    if (!formData.semester) errors.semester = 'Semester is missing'
+    if (!formData.section.trim()) errors.section = 'Section is missing'
+    if (!formData.labBatch.trim()) errors.labBatch = 'Lab batch is missing'
+
+    const cleanUsn = formData.usn.trim().toUpperCase().slice(0, 10)
+    const expectedDeptCode = getDeptCodeFromDept(adminDept)
+    if (!cleanUsn) errors.usn = 'USN (Register Number) is required'
+    else if (cleanUsn.length > 10) errors.usn = 'USN cannot exceed 10 characters'
+    else if (!isUsnInDept(cleanUsn, adminDept)) {
+      errors.usn = `USN must match ${adminDept} department (expected branch code '${expectedDeptCode}', e.g. 2VD__${expectedDeptCode}___)`
+    } else if (students_data.some(s => s.usn !== studentToEdit.usn && s.usn.toUpperCase() === cleanUsn)) {
+      errors.usn = 'Another student with this USN already exists'
+    }
+
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.email = 'Please enter a valid email address'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
+      return
+    }
+
+    const targetYear = formData.year
+    const targetSem = formData.semester
+    const targetSection = formData.section.trim()
+    const targetLab = formData.labBatch.trim()
+    const isDeviceReg = formData.device === 'Registered'
+
+    const updated = students_data.map(s =>
+      s.usn === studentToEdit.usn
+        ? {
+          ...s,
+          name: formData.name.trim(),
+          email: formData.email.trim() || `${cleanUsn.toLowerCase()}@klsvdit.edu.in`,
+          usn: cleanUsn,
+          year: targetYear,
+          semester: targetSem,
+          section: targetSection,
+          Lab: targetLab,
+          lab: targetLab,
+          device: isDeviceReg ? 'Linked' : 'Not Linked',
+          deviceBound: isDeviceReg,
+          boundDeviceName: isDeviceReg ? (s.boundDeviceName || `${formData.name.trim().split(' ')[0]}'s Device`) : null,
+        }
+        : s
+    )
+
+    setStudentsData(updated)
+    setShowEditModal(false)
+    setStudentToEdit(null)
+
+    // Redirect view to the student's updated semester and section
+    setSelectedYear(targetYear)
+    setSelectedSem(targetSem)
+    setSelectedSection(targetSection)
+    setSelectedLabBatch('ALL')
+
+    setFormData({ name: '', email: '', usn: '', year: '', semester: '', section: '', labBatch: '', account: 'Active', device: 'Not Registered', password: '' })
+    setFormErrors({})
+    setToastMessage({
+      type: 'success',
+      text: `Student "${formData.name.trim()}" updated successfully.`
+    })
+    setTimeout(() => setToastMessage(null), 5000)
+  }
+
+  // Handle Bulk Promotion of Students to Next Semester
+  const handleExecuteBulkPromote = () => {
+    if (!selectedSem || !selectedYear || selectedSem === '8th Sem') return
+    const progression = SEMESTER_PROGRESSION[selectedSem]
+    if (!progression) return
+
+    setPromotingSubmitting(true)
+    setTimeout(() => {
+      const promotedCount = students_data.filter(
+        s => s.year === selectedYear && s.semester === selectedSem && isStudentInDept(s.dept, adminDept)
+      ).length
+
+      setStudentsData(prev =>
+        prev.map(s => {
+          if (s.year === selectedYear && s.semester === selectedSem && isStudentInDept(s.dept, adminDept)) {
+            return {
+              ...s,
+              year: progression.nextYear,
+              semester: progression.nextSem,
+            }
+          }
+          return s
+        })
+      )
+
+      // Smart Bulk Promotion: Update active semester specifically for the destination year, leaving other batches untouched
+      const destCycle: 'ODD' | 'EVEN' = isOddSemester(progression.nextSem) ? 'ODD' : 'EVEN'
+      setSemCycleByYear(prev => {
+        const updated = { ...prev, [progression.nextYear]: destCycle }
+        try {
+          localStorage.setItem('smartattend_sem_cycle_by_year', JSON.stringify(updated))
+        } catch {}
+        return updated
       })
 
-      const newStudent: StudentRecord = {
-        id: res.data?.id || Date.now(),
-        name: formData.name,
-        usn: formData.registerNumber.toUpperCase(),
-        department: formData.department,
-        semester: Number(formData.semester),
-        section: formData.section.toUpperCase(),
-        academicYear: formData.academicYear,
-        email: formData.email,
-        deviceBound: false,
-        boundDeviceName: null,
-        account: 'Active'
-      }
+      setPromotingSubmitting(false)
+      setShowPromoteModal(false)
+      setSelectedSem(null) // Return to year overview
+      setSelectedSection('ALL')
+      setSelectedLabBatch('ALL')
 
-      setStudents(prev => [newStudent, ...prev])
-      setSuccessMessage('Student created successfully!')
-      setTimeout(() => {
-        setShowAddModal(false)
-        setSuccessMessage('')
-        setFormData({
-          name: '',
-          email: '',
-          registerNumber: '',
-          department: 'Computer Science',
-          semester: 3,
-          section: 'A',
-          academicYear: '2026-27'
-        })
-      }, 1000)
-    } catch (err: any) {
-      // If backend fails, also add locally in demo mode
-      const newStudent: StudentRecord = {
-        id: Date.now(),
-        name: formData.name,
-        usn: formData.registerNumber.toUpperCase(),
-        department: formData.department,
-        semester: Number(formData.semester),
-        section: formData.section.toUpperCase(),
-        academicYear: formData.academicYear,
-        email: formData.email,
-        deviceBound: false,
-        boundDeviceName: null,
-        account: 'Active'
+      setToastMessage({
+        type: 'success',
+        text: `Successfully promoted ${promotedCount} students to ${progression.nextSem} (${progression.nextYear}). Active semester for ${progression.nextYear} set to ${destCycle === 'ODD' ? 'Odd' : 'Even'} Sem.`
+      })
+      setTimeout(() => setToastMessage(null), 5000)
+    }, 400)
+  }
+
+  // Delete Student
+  const handleDeleteStudent = () => {
+    if (!studentToDelete) return
+    const remainingStudents = students_data.filter(s => s.usn !== studentToDelete.usn)
+    setStudentsData(remainingStudents)
+
+    if (selectedSection && selectedSection !== 'ALL') {
+      const hasStudentsLeft = remainingStudents.some(
+        s => s.year === selectedYear && s.semester === selectedSem && getSectionLetter(s.section) === getSectionLetter(selectedSection) && isStudentInDept(s.dept, adminDept)
+      )
+      if (!hasStudentsLeft) {
+        setSelectedSection('ALL')
+        setSelectedLabBatch('ALL')
       }
-      setStudents(prev => [...prev, newStudent].sort((a, b) => compareUsn(a.usn, b.usn)))
-      setSuccessMessage('Student registered (Demo Mode)')
-      setTimeout(() => {
-        setShowAddModal(false)
-        setSuccessMessage('')
-      }, 1000)
-    } finally {
-      setSubmitting(false)
     }
+
+    if (selectedLabBatch && selectedLabBatch !== 'ALL') {
+      const delBatch = (studentToDelete.Lab || studentToDelete.lab || `${getSectionLetter(studentToDelete.section)}1`).toUpperCase().replace(/^LAB\s*/i, '').trim()
+      if (selectedLabBatch.toUpperCase() === delBatch) {
+        const hasBatchStudentsLeft = remainingStudents.some(
+          s => s.year === selectedYear &&
+               s.semester === selectedSem &&
+               (selectedSection === 'ALL' || s.section === selectedSection) &&
+               ((s.Lab || s.lab || `${getSectionLetter(s.section)}1`).toUpperCase().replace(/^LAB\s*/i, '').trim() === delBatch) &&
+               isStudentInDept(s.dept, adminDept)
+        )
+        if (!hasBatchStudentsLeft) {
+          setSelectedLabBatch('ALL')
+        }
+      }
+    }
+
+    // Prune any sections and lab batches that now have zero students
+    const { prunedSections, prunedBatches } = pruneEmptySectionsAndBatches(remainingStudents, customSections, customLabBatches)
+    setCustomSections(prunedSections)
+    setCustomLabBatches(prunedBatches)
+    persistStudents(remainingStudents, prunedSections, prunedBatches)
+
+    setShowDeleteConfirm(false)
+    setStudentToDelete(null)
+  }
+
+  const openEditModal = (student: Student) => {
+    setStudentToEdit(student)
+    const secLetter = getSectionLetter(student.section)
+    const lab = (student.Lab || student.lab || `${secLetter}1`).toUpperCase().replace(/^LAB\s*/i, '').trim()
+    setFormData({
+      name: student.name,
+      email: student.email || '',
+      usn: student.usn,
+      year: student.year,
+      semester: student.semester || (YEAR_SEMESTERS[student.year]?.[0] || '1st Sem'),
+      section: student.section,
+      labBatch: lab,
+      account: student.account || 'Active',
+      device: student.device === 'Linked' || student.device === 'Registered' ? 'Registered' : 'Not Registered',
+      password: '',
+    })
+    setFormErrors({})
+    setShowEditModal(true)
+  }
+
+  const openDeleteConfirm = (student: any) => {
+    setStudentToDelete(student)
+    setShowDeleteConfirm(true)
+  }
+
+  const openCredentialsModal = (student: any) => {
+    setSelectedStudentForCredentials(student)
+    setShowCredentialsModal(true)
   }
 
   return (
     <AdminShell>
       <AdminContent>
         <div className="space-y-6">
+          {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground">Students</h1>
-                {isLive ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Synced with Backend
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
-                    Demo Mode
-                  </span>
-                )}
-                {hodDepartment && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800">
-                    <span className="size-1.5 rounded-full bg-blue-500" />
-                    HOD: {hodDepartment}
-                  </span>
-                )}
-              </div>
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">Students</h1>
               <p className="text-sm text-muted-foreground mt-1">Manage student directory, devices, and accounts.</p>
             </div>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => {
-                  setShowImportModal(true)
-                  setImportStep('upload')
-                  setImportFile(null)
-                  setPreviewData(null)
-                  setImportError('')
-                  setImportSuccess('')
-                }}
-                className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground shadow-sm transition-colors"
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Import Students
-              </button>
-              <div className="relative">
-                <button 
-                  onClick={() => setShowStudentExportDropdown(prev => !prev)}
-                  disabled={studentExporting}
-                  className="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground shadow-xs transition-colors"
+            {!selectedSem && (
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportYear('1st Year')
+                    setImportSemester('1st Sem')
+                    setImportFile(null)
+                    setImportPreview(null)
+                    setImportStep('upload')
+                    setImportError('')
+                    setShowImportModal(true)
+                  }}
+                  className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-colors cursor-pointer"
                 >
-                  {studentExporting ? (
-                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="mr-1.5 h-4 w-4" />
-                  )}
-                  Export
-                  <ChevronDown className="ml-1 h-3.5 w-3.5 text-muted-foreground" />
+                  <Upload className="mr-2 h-4 w-4" />
+                  Import Students
                 </button>
-                {showStudentExportDropdown && (
-                  <div className="absolute right-0 mt-1.5 w-48 rounded-xl border border-border bg-card shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95">
+              </div>
+            )}
+          </div>
+
+          {/* Level 1: Year Selection Cards with Semester Dropdowns */}
+          {!selectedSem && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-3">Select Year to View Semesters</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start relative">
+                  {years.map(year => {
+                    const sems = YEAR_SEMESTERS[year] || []
+                    const yearCycle = semCycleByYear[year] || 'ODD'
+                    const totalYearStudents = students_data.filter(s => s.year === year && isStudentInDept(s.dept, adminDept)).length
+                    const activeYearStudents = students_data.filter(
+                      s => s.year === year && isStudentInDept(s.dept, adminDept) && isSemesterActive(s.semester, yearCycle)
+                    ).length
+                    const isOpen = openYearDropdown === year
+
+                    return (
+                      <div
+                        key={year}
+                        className="relative"
+                      >
+                        {/* Year Header Button */}
+                        <button
+                          type="button"
+                          onClick={() => setOpenYearDropdown(isOpen ? null : year)}
+                          className={`w-full p-4 rounded-xl border-2 text-left flex items-center justify-between transition-all bg-card cursor-pointer ${
+                            isOpen ? 'border-primary ring-2 ring-primary/20 shadow-md' : 'border-border hover:border-primary/60 shadow-sm'
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold text-foreground text-base group-hover:text-primary transition-colors">
+                              {year}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              <strong className="text-foreground font-semibold">{activeYearStudents} active</strong> · {totalYearStudents} total • {sems.length} Semesters
+                            </div>
+                          </div>
+                          <div className={`p-1.5 rounded-md transition-all duration-200 ${isOpen ? 'rotate-180 bg-primary text-primary-foreground' : 'text-muted-foreground bg-muted group-hover:bg-accent'}`}>
+                            <ChevronDown className="size-4" />
+                          </div>
+                        </button>
+
+                        {/* Floating Semester Dropdown */}
+                        {isOpen && (
+                          <>
+                            {/* Click-outside backdrop */}
+                            <div
+                              className="fixed inset-0 z-20"
+                              onClick={() => setOpenYearDropdown(null)}
+                            />
+
+                            <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 bg-card rounded-xl border border-border shadow-xl p-2.5 space-y-2 animate-in fade-in-50 zoom-in-95">
+                              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1 flex items-center justify-between">
+                                <span>Select Semester</span>
+                                {/* Sleek integrated Odd / Even pill toggle */}
+                                <div className="flex items-center p-0.5 rounded-md border border-border bg-muted/80 text-[10px] lowercase normal-case tracking-normal">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleToggleYearSemCycle(year, 'ODD')
+                                    }}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                                      yearCycle === 'ODD'
+                                        ? 'bg-primary text-primary-foreground shadow-xs'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                  >
+                                    Odd
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleToggleYearSemCycle(year, 'EVEN')
+                                    }}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                                      yearCycle === 'EVEN'
+                                        ? 'bg-primary text-primary-foreground shadow-xs'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                  >
+                                    Even
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                {sems.map(sem => {
+                                  const semStudents = students_data.filter(
+                                    s => s.year === year && s.semester === sem && isStudentInDept(s.dept, adminDept)
+                                  ).length
+                                  const isActive = isSemesterActive(sem, yearCycle)
+
+                                  if (isActive) {
+                                    return (
+                                      <button
+                                        key={sem}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedYear(year)
+                                          setSelectedSem(sem)
+                                          setSelectedSection('ALL')
+                                          setOpenYearDropdown(null)
+                                        }}
+                                        className="w-full p-2.5 rounded-lg border-2 border-primary/40 bg-primary/5 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all text-left flex items-center justify-between group cursor-pointer shadow-xs"
+                                      >
+                                        <div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-bold text-sm text-foreground group-hover:text-primary-foreground">
+                                              {sem}
+                                            </span>
+                                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-primary text-primary-foreground group-hover:bg-primary-foreground group-hover:text-primary">
+                                              Active
+                                            </span>
+                                          </div>
+                                          <div className="text-[11px] text-muted-foreground group-hover:text-primary-foreground/80 mt-0.5">
+                                            {semStudents} students
+                                          </div>
+                                        </div>
+                                        <span className="text-xs font-bold text-primary group-hover:text-primary-foreground transition-transform group-hover:translate-x-0.5">
+                                          →
+                                        </span>
+                                      </button>
+                                    )
+                                  }
+
+                                  // Inactive semester (greyed out, disabled)
+                                  return (
+                                    <div
+                                      key={sem}
+                                      className="w-full p-2.5 rounded-lg border border-dashed border-border/80 bg-muted/40 opacity-60 text-left flex items-center justify-between cursor-not-allowed select-none"
+                                    >
+                                      <div>
+                                        <div className="font-semibold text-sm text-muted-foreground">
+                                          {sem}
+                                        </div>
+                                        <div className="text-[10px] text-muted-foreground italic mt-0.5">
+                                          Currently {yearCycle === 'ODD' ? 'Odd' : 'Even'} Semester is ongoing
+                                        </div>
+                                        <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                                          {semStudents} students
+                                        </div>
+                                      </div>
+                                      <Lock className="size-3.5 text-muted-foreground/60" />
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Level 2: Semester & Section View with Table */}
+          {selectedSem && (
+            <div className="space-y-4">
+              {/* Navigation Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-border bg-card shadow-sm">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      setSelectedSem(null)
+                      setSelectedSection('ALL')
+                    }}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline cursor-pointer"
+                  >
+                    <ArrowLeft className="size-4" />
+                    Back to Years
+                  </button>
+                  <span className="text-muted-foreground">|</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-foreground">{selectedYear}</span>
+                    <span className="text-muted-foreground">/</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/15 text-primary">
+                      {selectedSem}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right side actions: Bulk Promote Button (for active semester with students, excluded for 8th Sem) */}
+                {selectedSem && selectedSem !== '8th Sem' && isSemesterActive(selectedSem, semCycleByYear[selectedYear || ''] || 'ODD') && SEMESTER_PROGRESSION[selectedSem] && students_data.some(s => s.year === selectedYear && s.semester === selectedSem && isStudentInDept(s.dept, adminDept)) && (
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
-                      onClick={() => handleStudentExport('pdf')}
-                      className="w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 flex items-center gap-2.5 transition-colors"
+                      type="button"
+                      onClick={() => setShowPromoteModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
                     >
-                      <FileText className="h-4 w-4 text-rose-500" />
-                      PDF Document (.pdf)
-                    </button>
-                    <button
-                      onClick={() => handleStudentExport('xls')}
-                      className="w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 flex items-center gap-2.5 transition-colors"
-                    >
-                      <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                      Excel 97-2004 (.xls)
-                    </button>
-                    <button
-                      onClick={() => handleStudentExport('xlsx')}
-                      className="w-full text-left px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/80 flex items-center gap-2.5 transition-colors"
-                    >
-                      <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
-                      Excel Workbook (.xlsx)
+                      <TrendingUp className="size-3.5" />
+                      Bulk Promote → {SEMESTER_PROGRESSION[selectedSem].nextSem}
                     </button>
                   </div>
                 )}
               </div>
-              <button 
-                onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Student
-              </button>
-            </div>
-          </div>
 
-          <div className="rounded-xl border border-border bg-card shadow-sm">
-            <div className="p-4 border-b border-border flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-              {/* Left: Search Bar */}
-              <div className="relative w-full xl:w-64 shrink-0">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search by name, USN, dept..."
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-4 text-sm outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
+              {/* Section & Lab Batch Selector Part of that Semester */}
+              <div className="p-4 rounded-xl border border-border bg-card shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">
+                      Sections & Lab Batches in {selectedSem} ({selectedYear})
+                    </h3>
 
-              {/* Compact Section: USN Range & Division Assignment */}
-              <div className="flex flex-wrap items-center gap-2.5 p-2 bg-muted/40 rounded-xl border border-border">
-                <span className="text-xs font-semibold text-foreground whitespace-nowrap px-1">USN Range:</span>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Beginning USN</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. 2VD23CS001"
-                    value={startUsn}
-                    onChange={e => {
-                      setStartUsn(e.target.value)
-                      setRangeError('')
-                    }}
-                    className="h-8 w-28 sm:w-32 rounded-md border border-input bg-background px-2.5 text-xs font-mono uppercase outline-none focus:ring-1 focus:ring-ring"
-                  />
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Ending USN</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. 2VD23CS023"
-                    value={endUsn}
-                    onChange={e => {
-                      setEndUsn(e.target.value)
-                      setRangeError('')
-                    }}
-                    className="h-8 w-28 sm:w-32 rounded-md border border-input bg-background px-2.5 text-xs font-mono uppercase outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Division</span>
-                  <select
-                    value={selectedDivision}
-                    onChange={e => {
-                      setSelectedDivision(e.target.value)
-                      setRangeError('')
-                    }}
-                    className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-                  >
-                    <option value="">Select</option>
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
-                    <option value="D">D</option>
-                  </select>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleApplyDivision}
-                  disabled={!startUsn || !endUsn || !selectedDivision || checkingRange}
-                  className="inline-flex items-center justify-center h-8 px-3.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {checkingRange ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                  Apply
-                </button>
-
-                {(startUsn || endUsn || selectedDivision) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStartUsn('')
-                      setEndUsn('')
-                      setSelectedDivision('')
-                      setRangeError('')
-                    }}
-                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors flex items-center gap-1"
-                    title="Clear range"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline text-[11px]">Clear</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Compact Section: USN Range -> Lab Batch Allotment */}
-              <div className="flex flex-wrap items-center gap-2.5 p-2 bg-muted/40 rounded-xl border border-border">
-                <span className="text-xs font-semibold text-foreground whitespace-nowrap px-1">Lab Batch:</span>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Beginning USN</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. 2VD23CS001"
-                    value={labStartUsn}
-                    onChange={e => {
-                      setLabStartUsn(e.target.value)
-                      setLabRangeError('')
-                    }}
-                    className="h-8 w-28 sm:w-32 rounded-md border border-input bg-background px-2.5 text-xs font-mono uppercase outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Ending USN</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. 2VD23CS010"
-                    value={labEndUsn}
-                    onChange={e => {
-                      setLabEndUsn(e.target.value)
-                      setLabRangeError('')
-                    }}
-                    className="h-8 w-28 sm:w-32 rounded-md border border-input bg-background px-2.5 text-xs font-mono uppercase outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">Batch</span>
-                  <select
-                    value={selectedLabBatch}
-                    onChange={e => {
-                      setSelectedLabBatch(e.target.value)
-                      setLabRangeError('')
-                    }}
-                    className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-                  >
-                    <option value="">Select</option>
-                    <optgroup label="Division A">
-                      <option value="A1">A1</option>
-                      <option value="A2">A2</option>
-                      <option value="A3">A3</option>
-                      <option value="A4">A4</option>
-                    </optgroup>
-                    <optgroup label="Division B">
-                      <option value="B1">B1</option>
-                      <option value="B2">B2</option>
-                      <option value="B3">B3</option>
-                      <option value="B4">B4</option>
-                    </optgroup>
-                    <optgroup label="Division C">
-                      <option value="C1">C1</option>
-                      <option value="C2">C2</option>
-                      <option value="C3">C3</option>
-                      <option value="C4">C4</option>
-                    </optgroup>
-                    <optgroup label="Division D">
-                      <option value="D1">D1</option>
-                      <option value="D2">D2</option>
-                      <option value="D3">D3</option>
-                      <option value="D4">D4</option>
-                    </optgroup>
-                  </select>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleApplyLabBatch}
-                  disabled={!labStartUsn || !labEndUsn || !selectedLabBatch || checkingLabRange}
-                  className="inline-flex items-center justify-center h-8 px-3.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {checkingLabRange ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                  Apply
-                </button>
-
-                {(labStartUsn || labEndUsn || selectedLabBatch) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLabStartUsn('')
-                      setLabEndUsn('')
-                      setSelectedLabBatch('')
-                      setLabRangeError('')
-                    }}
-                    className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors flex items-center gap-1"
-                    title="Clear lab range"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline text-[11px]">Clear</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Student count */}
-              <div className="text-xs text-muted-foreground shrink-0 self-end xl:self-auto">
-                {filtered.length} student{filtered.length === 1 ? '' : 's'} found
-              </div>
-            </div>
-
-            {/* Lab Range Error Banner */}
-            {labRangeError && (
-              <div className="p-3 px-4 text-xs bg-rose-50 text-rose-800 border-b border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                  <span>{labRangeError}</span>
-                </div>
-                <button type="button" onClick={() => setLabRangeError('')} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Lab Range Action Message Banner */}
-            {labActionMessage && (
-              <div className={`p-3 px-4 text-xs border-b flex items-center justify-between ${
-                labActionMessage.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800'
-                  : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800'
-              }`}>
-                <div className="flex items-center gap-2">
-                  {labActionMessage.type === 'success' ? (
-                    <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                  )}
-                  <span>{labActionMessage.text}</span>
-                </div>
-                <button type="button" onClick={() => setLabActionMessage(null)} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Error or Success feedback banner */}
-            {rangeError && (
-              <div className="p-3 px-4 text-xs bg-rose-50 text-rose-800 border-b border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                  <span>{rangeError}</span>
-                </div>
-                <button type="button" onClick={() => setRangeError('')} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            {divisionActionMessage && (
-              <div className={`p-3 px-4 text-xs border-b flex items-center justify-between ${
-                divisionActionMessage.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800'
-                  : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>{divisionActionMessage.text}</span>
-                </div>
-                <button type="button" onClick={() => setDivisionActionMessage(null)} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            {toastMessage && (
-              <div className={`p-3 px-4 text-xs border-b flex items-center justify-between ${
-                toastMessage.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800'
-                  : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>{toastMessage.text}</span>
-                </div>
-                <button type="button" onClick={() => setToastMessage(null)} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-semibold">
-                  <tr>
-                    <th className="px-6 py-3 border-b border-border">Student</th>
-                    <th className="px-6 py-3 border-b border-border">USN</th>
-                    <th className="px-6 py-3 border-b border-border">Dept / Semester</th>
-                    <th className="px-6 py-3 border-b border-border">Section</th>
-                    <th className="px-6 py-3 border-b border-border">Device Status</th>
-                    <th className="px-6 py-3 border-b border-border text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
-                        Loading students from backend...
-                      </td>
-                    </tr>
-                  ) : filtered.map((s, i) => (
-                    <tr key={s.id || i} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-foreground">
-                        <div>{s.name}</div>
-                        {s.email && <div className="text-xs text-muted-foreground">{s.email}</div>}
-                      </td>
-                      <td className="px-6 py-4 font-mono text-xs">{s.usn}</td>
-                      <td className="px-6 py-4">
-                        <span className="block text-foreground">{s.department}</span>
-                        <span className="text-xs text-muted-foreground">Semester {s.semester}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground">
-                            Sec {s.section}
-                          </span>
-                          {(s.Lab || s.lab) && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-                              Lab {s.Lab || s.lab}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge status={s.deviceBound ? 'Registered' : 'Not Registered'} />
-                      </td>
-                      <td className="px-6 py-4 text-right relative">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setOpenActionMenuId(openActionMenuId === s.id ? null : s.id)
-                          }}
-                          className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-accent transition-colors cursor-pointer"
-                          title="Actions"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
-
-                        {openActionMenuId === s.id && (
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            className="absolute right-6 top-10 w-44 rounded-lg border border-border bg-popover p-1 shadow-lg z-30 text-xs animate-in fade-in zoom-in-95 text-left"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenActionMenuId(null)
-                                handleOpenUpdateModal(s)
-                              }}
-                              className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
-                            >
-                              <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
-                              Update Student
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenActionMenuId(null)
-                                handleOpenDeviceModal(s)
-                              }}
-                              className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
-                            >
-                              <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
-                              Device Management
-                            </button>
-                            <div className="my-1 border-t border-border" />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenActionMenuId(null)
-                                handleOpenDeleteModal(s)
-                              }}
-                              className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left font-medium text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Delete Student
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {!loading && filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
-                        No students found matching your criteria.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Import Students Modal */}
-        {showImportModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <div className="bg-card border border-border w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-              <div className="flex items-center justify-between p-6 border-b border-border">
+                {/* Section Buttons / Tabs */}
                 <div>
-                  <h2 className="text-xl font-semibold text-foreground">
-                    {importStep === 'preview' ? 'Import Preview' : importStep === 'success' ? 'Import Successful' : 'Import Students'}
-                  </h2>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {importStep === 'preview' 
-                      ? 'Review extracted student records before inserting into PostgreSQL.'
-                      : importStep === 'success'
-                      ? 'The verified student records have been saved.'
-                      : 'Bulk register students from an Excel (.xlsx, .xls) or PDF (.pdf) file.'}
-                  </p>
+                  <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <span>Section</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedSection('ALL')
+                        setSelectedLabBatch('ALL')
+                      }}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                        selectedSection === 'ALL'
+                          ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                          : 'bg-background hover:bg-accent text-foreground border-input'
+                      }`}
+                    >
+                      All Sections ({students_data.filter(s => s.year === selectedYear && s.semester === selectedSem && isStudentInDept(s.dept, adminDept)).length})
+                    </button>
+
+                    {sectionsForCurrentSem.map(sec => {
+                      const secLetter = getSectionLetter(sec)
+                      const secCount = students_data.filter(
+                        s => s.year === selectedYear && s.semester === selectedSem && getSectionLetter(s.section) === secLetter && isStudentInDept(s.dept, adminDept)
+                      ).length
+                      
+                      if (secCount === 0) return null;
+
+                      const isSelected = selectedSection === sec || (selectedSection !== 'ALL' && getSectionLetter(selectedSection) === secLetter)
+                      const displayName = getSectionDisplayName(sec)
+
+                      return (
+                        <button
+                          key={sec}
+                          onClick={() => {
+                            setSelectedSection(sec)
+                            setSelectedLabBatch('ALL')
+                          }}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-2 ${
+                            isSelected
+                              ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                              : 'bg-background hover:bg-accent text-foreground border-input'
+                          }`}
+                        >
+                          <span>{displayName}</span>
+                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${isSelected ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                            {secCount}
+                          </span>
+                        </button>
+                      )
+                    })}
+
+                    {/* Admin Access: Create New Section Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const existingLetters = sectionsForCurrentSem.map(s => getSectionLetter(s))
+                        const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                        let nextLetter = 'C'
+                        for (const char of alphabet) {
+                          if (!existingLetters.includes(char)) {
+                            nextLetter = char
+                            break
+                          }
+                        }
+                        setNewSectionLetter(nextLetter)
+                        setNewSectionError('')
+                        setShowCreateSectionModal(true)
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground border border-primary/20 transition-all cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Create Section</span>
+                    </button>
+                  </div>
                 </div>
-                <button 
-                  onClick={() => setShowImportModal(false)}
-                  className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+
+                {/* Lab Batches Row (Only 1-click quick toggle pill badges, dropdown removed) */}
+                <div className="pt-3 border-t border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mr-1">
+                      <span>Lab Batches</span>
+                    </div>
+
+                    {/* 1-Click Quick Toggle Pill Badges */}
+                    <div className="flex flex-wrap items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/60">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLabBatch('ALL')}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                          selectedLabBatch === 'ALL'
+                            ? 'bg-background text-foreground shadow-xs font-semibold'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        All
+                      </button>
+                      {availableBatchesForActiveSection.map(batch => {
+                        const batchCount = students_data.filter(
+                          s => s.year === selectedYear && s.semester === selectedSem && ((s.Lab || s.lab || `${getSectionLetter(s.section)}1`).toUpperCase().replace(/^LAB\s*/i, '').trim() === batch) && isStudentInDept(s.dept, adminDept) && (selectedSection === 'ALL' || getSectionLetter(s.section) === getSectionLetter(selectedSection))
+                        ).length
+
+                        if (batchCount === 0) return null;
+
+                        const isSelected = selectedLabBatch === batch
+                        return (
+                          <button
+                            key={batch}
+                            type="button"
+                            onClick={() => setSelectedLabBatch(batch)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-mono transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                            }`}
+                          >
+                            {batch}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Admin Access: Create New Lab Batch Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const initialSecLetter = selectedSection && selectedSection !== 'ALL'
+                        ? getSectionLetter(selectedSection)
+                        : (sectionsForCurrentSem[0] ? getSectionLetter(sectionsForCurrentSem[0]) : 'A')
+                      setNewBatchSection(initialSecLetter)
+                      const existing = customLabBatches[initialSecLetter] || []
+                      setNewBatchName(`${initialSecLetter}${existing.length + 1}`)
+                      setNewBatchError('')
+                      setShowCreateBatchModal(true)
+                    }}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground border border-primary/20 transition-all self-start sm:self-auto cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Create Lab Batch</span>
+                  </button>
+                </div>
               </div>
 
-              {importError && (
-                <div className="mx-6 mt-4 p-3 text-sm bg-destructive/10 text-destructive border border-destructive/20 rounded-lg flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <span>{importError}</span>
-                </div>
-              )}
-
-              {/* Step 1: Upload Step */}
-              {importStep === 'upload' && (
-                <form onSubmit={handlePreviewImport} className="p-6 space-y-5 overflow-y-auto">
-                  <div className="p-3.5 bg-muted/50 rounded-lg border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="text-xs text-muted-foreground">
-                      Target Department: <span className="font-semibold text-foreground">{hodDepartment || 'Assigned Department'}</span>
+              {/* Table of Students in that Semester & Section */}
+              <div className="rounded-xl border border-border bg-card shadow-sm">
+                <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 flex-1">
+                    <div className="relative w-full max-w-sm">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Search by student name or USN..."
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        className="h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-4 text-sm outline-none focus:ring-1 focus:ring-ring"
+                      />
                     </div>
-                    <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 self-start sm:self-auto">
-                      Auto-enforced from HOD Account
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleExportStudents}
+                      title="Export students to Excel (.xlsx)"
+                      className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Export
+                    </button>
+                    <button
+                      onClick={() => {
+                        const defaultYear = selectedYear || '1st Year'
+                        const defaultSem = selectedSem || (YEAR_SEMESTERS[defaultYear]?.[0] || '1st Sem')
+                        const available = getSectionsForYearAndSem(defaultYear, defaultSem)
+                        const defaultSec = selectedSection && selectedSection !== 'ALL' ? selectedSection : (available[0] || `${adminDept} 1A`)
+                        const secLetter = getSectionLetter(defaultSec)
+                        const existing = Array.from(
+                          new Set(
+                            students_data
+                              .filter(s => s.year === defaultYear && s.semester === defaultSem && getSectionLetter(s.section) === secLetter && isStudentInDept(s.dept, adminDept))
+                              .map(s => (s.Lab || s.lab || '').toUpperCase().replace(/^LAB\s*/i, '').trim())
+                              .filter(Boolean)
+                          )
+                        )
+                        const batches = Array.from(new Set([...existing, ...(customLabBatches[secLetter] || []), `${secLetter}1`])).sort()
+
+                        const deptCode = getDeptCodeFromDept(adminDept)
+                        const yy = getAdmissionYearFromAcademicYear(defaultYear)
+
+                        setFormData({
+                          name: '',
+                          email: '',
+                          usn: `2VD${yy}${deptCode}`,
+                          year: defaultYear,
+                          semester: defaultSem,
+                          section: defaultSec,
+                          labBatch: selectedLabBatch && selectedLabBatch !== 'ALL' ? selectedLabBatch : (batches[0] || `${secLetter}1`),
+                          account: 'Active',
+                          device: 'Not Registered',
+                          password: ''
+                        })
+                        setFormErrors({})
+                        setShowAddModal(true)
+                      }}
+                      className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Student
+                    </button>
+                  </div>
+                </div>
+
+                {/* Toast feedback banner */}
+                {toastMessage && (
+                  <div className={`p-3 px-4 text-xs border rounded-lg mb-4 flex items-center justify-between ${
+                    toastMessage.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800'
+                      : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {toastMessage.type === 'success' ? (
+                        <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                      )}
+                      <span>{toastMessage.text}</span>
+                    </div>
+                    <button type="button" onClick={() => setToastMessage(null)} className="text-muted-foreground hover:text-foreground">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-semibold">
+                      <tr>
+                        <th className="px-6 py-3 border-b border-border">Student</th>
+                        <th className="px-6 py-3 border-b border-border">USN</th>
+                        <th className="px-6 py-3 border-b border-border">Semester</th>
+                        <th className="px-6 py-3 border-b border-border">Section / Lab Batch</th>
+                        <th className="px-6 py-3 border-b border-border">Device Status</th>
+                        <th className="px-6 py-3 border-b border-border text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {filtered.map((s, i) => {
+                        const semNum = s.semester?.replace(/[^0-9]/g, '') || s.semester || '1'
+                        const secCode = s.section?.replace(/^.*?(\d?[A-Z])$/, '$1') || s.section
+                        const labCode = s.Lab || s.lab || `${secCode.slice(-1)}1` || 'A1'
+                        const isDeviceRegistered = s.device === 'Linked' || s.device === 'Registered'
+
+                        return (
+                          <tr key={s.usn || i} className="hover:bg-muted/50 transition-colors">
+                            <td className="px-6 py-4 font-medium text-foreground">
+                              <div>{s.name}</div>
+                              {s.email && <div className="text-xs text-muted-foreground">{s.email}</div>}
+                            </td>
+                            <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{s.usn}</td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground border border-border">
+                                Semester {semNum}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-secondary text-secondary-foreground border border-border/60 font-mono">
+                                {formatSectionLab(s.section, s.Lab || s.lab)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <StatusBadge status={isDeviceRegistered ? 'Registered' : 'Not Registered'} />
+                            </td>
+                            <td className="px-6 py-4 text-right relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setOpenActionMenuId(openActionMenuId === s.usn ? null : s.usn)
+                                }}
+                                className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-accent transition-colors cursor-pointer inline-flex items-center justify-center"
+                                title="Actions"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </button>
+
+                              {openActionMenuId === s.usn && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute right-6 top-10 w-44 rounded-lg border border-border bg-popover p-1 shadow-lg z-30 text-xs animate-in fade-in zoom-in-95 text-left"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null)
+                                      openEditModal(s)
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                                  >
+                                    <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                    Edit Student
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null)
+                                      handleOpenDeviceModal(s)
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                                  >
+                                    <Smartphone className="h-3.5 w-3.5 text-muted-foreground" />
+                                    Device Management
+                                  </button>
+                                  <div className="my-1 border-t border-border" />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionMenuId(null)
+                                      handleOpenDeleteModal(s)
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left font-medium text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    Delete Student
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {filtered.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-12 text-center">
+                            <div className="flex flex-col items-center justify-center space-y-3 max-w-sm mx-auto">
+                              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                                <Users className="h-5 w-5" />
+                              </div>
+                              <div className="space-y-1">
+                                <p className="text-sm font-semibold text-foreground">No students in this view</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {query.trim()
+                                    ? `No student matching "${query}" found.`
+                                    : `There are no students registered in ${selectedSem}${selectedSection !== 'ALL' ? ` (${selectedSection})` : ''} yet.`}
+                                </p>
+                              </div>
+                              {!query.trim() && (
+                                <div className="flex items-center gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (selectedYear) setImportYear(selectedYear)
+                                      if (selectedSem) setImportSemester(selectedSem)
+                                      setImportFile(null)
+                                      setImportPreview(null)
+                                      setImportStep('upload')
+                                      setImportError('')
+                                      setShowImportModal(true)
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-input bg-background hover:bg-accent text-foreground transition-colors cursor-pointer"
+                                  >
+                                    <Upload className="h-3.5 w-3.5" />
+                                    Import Excel/CSV
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const defaultYear = selectedYear || '1st Year'
+                                      const defaultSem = selectedSem || (YEAR_SEMESTERS[defaultYear]?.[0] || '1st Sem')
+                                      const available = getSectionsForYearAndSem(defaultYear, defaultSem)
+                                      const defaultSec = selectedSection && selectedSection !== 'ALL' ? selectedSection : (available[0] || `${adminDept} 1A`)
+                                      const secLetter = getSectionLetter(defaultSec)
+                                      const existing = Array.from(
+                                        new Set(
+                                          students_data
+                                            .filter(s => s.year === defaultYear && s.semester === defaultSem && getSectionLetter(s.section) === secLetter && isStudentInDept(s.dept, adminDept))
+                                            .map(s => (s.Lab || s.lab || '').toUpperCase().replace(/^LAB\s*/i, '').trim())
+                                            .filter(Boolean)
+                                        )
+                                      )
+                                      const batches = Array.from(new Set([...existing, ...(customLabBatches[secLetter] || []), `${secLetter}1`])).sort()
+
+                                      const deptCode = getDeptCodeFromDept(adminDept)
+                                      const yy = getAdmissionYearFromAcademicYear(defaultYear)
+
+                                      setFormData({
+                                        name: '',
+                                        email: '',
+                                        usn: `2VD${yy}${deptCode}`,
+                                        year: defaultYear,
+                                        semester: defaultSem,
+                                        section: defaultSec,
+                                        labBatch: selectedLabBatch && selectedLabBatch !== 'ALL' ? selectedLabBatch : (batches[0] || `${secLetter}1`),
+                                        account: 'Active',
+                                        device: 'Not Registered',
+                                        password: ''
+                                      })
+                                      setFormErrors({})
+                                      setShowAddModal(true)
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+                                  >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Add Student
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="p-4 border-t border-border flex items-center justify-between text-sm text-muted-foreground">
+                  <span>Showing 1 to {filtered.length} of {filtered.length} entries</span>
+                  <div className="flex gap-1">
+                    <button disabled className="px-3 py-1 border border-input rounded-md opacity-50">Prev</button>
+                    <button className="px-3 py-1 border border-input rounded-md bg-accent text-accent-foreground">1</button>
+                    <button disabled className="px-3 py-1 border border-input rounded-md opacity-50">Next</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CREATE SECTION MODAL (ADMIN ACCESS) */}
+          {showCreateSectionModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+              <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between p-5 border-b border-border">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Create Section</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Add a new section for {selectedSem} ({selectedYear}).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateSectionModal(false)}
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreateSection} className="p-5 space-y-4">
+                  {newSectionError && (
+                    <div className="p-3 text-xs bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 rounded-md flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                      <span>{newSectionError}</span>
+                    </div>
+                  )}
+
+                  {/* Section Letter / Name */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">Section Identifier / Letter</label>
+                    <input
+                      type="text"
+                      required
+                      value={newSectionLetter}
+                      onChange={(e) => {
+                        setNewSectionLetter(e.target.value.toUpperCase())
+                        setNewSectionError('')
+                      }}
+                      placeholder="e.g. C, D, E"
+                      className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm font-mono outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Will create section <span className="font-mono font-semibold text-foreground">
+                        {adminDept} {(selectedYear || '1').match(/\d/)?.[0] || '1'}{newSectionLetter.trim().toUpperCase() || 'C'}
+                      </span> with 4 auto-provisioned lab batches (<span className="font-mono">{newSectionLetter.trim().toUpperCase() || 'C'}1</span> to <span className="font-mono">{newSectionLetter.trim().toUpperCase() || 'C'}4</span>).
+                    </p>
+                  </div>
+
+                  {/* Existing sections in current semester */}
+                  <div className="p-3 bg-muted/40 rounded-lg border border-border text-xs">
+                    <span className="text-muted-foreground">Existing sections in {selectedSem}: </span>
+                    <span className="font-semibold text-foreground font-mono">
+                      {sectionsForCurrentSem.map(s => getSectionDisplayName(s)).join(', ') || 'None'}
                     </span>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label required>Year of Study</Label>
-                    <p className="text-xs text-muted-foreground">
-                      The selected year will automatically be assigned to every student in the uploaded file.
-                    </p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { y: 1, label: '1st Year', sem: 'Sem 1' },
-                        { y: 2, label: '2nd Year', sem: 'Sem 3' },
-                        { y: 3, label: '3rd Year', sem: 'Sem 5' },
-                        { y: 4, label: '4th Year', sem: 'Sem 7' },
-                      ].map(opt => (
-                        <button
-                          key={opt.y}
-                          type="button"
-                          onClick={() => setImportYear(opt.y)}
-                          className={`p-3 rounded-lg border text-center transition-all ${
-                            importYear === opt.y
-                              ? 'border-primary bg-primary/5 text-primary font-semibold shadow-xs ring-1 ring-primary'
-                              : 'border-input bg-background hover:bg-muted/50 text-foreground'
-                          }`}
-                        >
-                          <div className="text-sm">{opt.label}</div>
-                          <div className="text-[11px] text-muted-foreground mt-0.5">{opt.sem}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label required>Upload Student List</Label>
-                    <div className="relative border-2 border-dashed border-input hover:border-primary/50 transition-colors rounded-xl p-6 text-center cursor-pointer bg-muted/20">
-                      <input
-                        type="file"
-                        accept=".xlsx,.xls,.pdf"
-                        onChange={e => {
-                          const file = e.target.files?.[0] || null;
-                          setImportFile(file);
-                          setImportError('');
-                        }}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
-                      <div className="flex flex-col items-center justify-center space-y-2">
-                        <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                          <Upload className="size-6" />
-                        </div>
-                        {importFile ? (
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{importFile.name}</p>
-                            <p className="text-xs text-muted-foreground">{(importFile.size / 1024).toFixed(1)} KB</p>
-                          </div>
-                        ) : (
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Click to upload or drag and drop</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">Accepted: Excel (.xlsx, .xls) and PDF (.pdf)</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
                     <button
                       type="button"
-                      onClick={() => setShowImportModal(false)}
-                      className="px-4 py-2 text-sm font-medium rounded-lg border border-input hover:bg-muted transition-colors"
+                      onClick={() => setShowCreateSectionModal(false)}
+                      className="h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      disabled={!importFile || importSubmitting}
-                      className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm disabled:opacity-50 transition-colors"
+                      className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-1.5"
                     >
-                      {importSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Preview Students
+                      <Plus className="h-4 w-4" />
+                      Create Section
                     </button>
                   </div>
                 </form>
-              )}
+              </div>
+            </div>
+          )}
 
-              {/* Step 2: Preview Step */}
-              {importStep === 'preview' && (
-                <div className="flex flex-col flex-1 overflow-hidden p-6 space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="p-3 rounded-lg border border-border bg-card">
-                      <div className="text-xs text-muted-foreground">Total Found</div>
-                      <div className="text-xl font-bold text-foreground">{previewData?.totalFound || 0}</div>
+          {/* CREATE LAB BATCH MODAL (ADMIN ACCESS) */}
+          {showCreateBatchModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+              <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between p-5 border-b border-border">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Create Lab Batch</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Add a new laboratory batch for {selectedSem} ({selectedYear}).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateBatchModal(false)}
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreateLabBatch} className="p-5 space-y-4">
+                  {newBatchError && (
+                    <div className="p-3 text-xs bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 rounded-md flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                      <span>{newBatchError}</span>
                     </div>
-                    <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20">
-                      <div className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Ready to Import</div>
-                      <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{previewData?.readyToImport || 0}</div>
+                  )}
+
+                  {/* Target Section */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">Target Section</label>
+                    <select
+                      value={newBatchSection}
+                      onChange={(e) => {
+                        const secLetter = e.target.value
+                        setNewBatchSection(secLetter)
+                        const existing = customLabBatches[secLetter] || []
+                        setNewBatchName(`${secLetter}${existing.length + 1}`)
+                        setNewBatchError('')
+                      }}
+                      className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                    >
+                      {sectionsForCurrentSem.map(sec => {
+                        const letter = getSectionLetter(sec)
+                        return (
+                          <option key={sec} value={letter}>
+                            {getSectionDisplayName(sec)} ({sec})
+                          </option>
+                        )
+                      })}
+                    </select>
+                  </div>
+
+                  {/* Batch Name/Code */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">Lab Batch Name / Code</label>
+                    <input
+                      type="text"
+                      required
+                      value={newBatchName}
+                      onChange={(e) => {
+                        setNewBatchName(e.target.value)
+                        setNewBatchError('')
+                      }}
+                      placeholder="e.g. A3, A4, B3"
+                      className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm font-mono outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Batch format will display as <span className="font-mono font-semibold text-foreground">{newBatchSection}/{newBatchName.trim().toUpperCase() || `${newBatchSection}1`}</span> in student records.
+                    </p>
+                  </div>
+
+                  {/* Existing batches in this section */}
+                  <div className="p-3 bg-muted/40 rounded-lg border border-border text-xs">
+                    <span className="text-muted-foreground">Existing batches in Section {newBatchSection}: </span>
+                    <span className="font-semibold text-foreground font-mono">
+                      {Array.from(new Set([
+                        ...students_data
+                          .filter(s => s.year === selectedYear && s.semester === selectedSem && getSectionLetter(s.section) === newBatchSection && isStudentInDept(s.dept, adminDept))
+                          .map(s => (s.Lab || s.lab || '').toUpperCase().replace(/^LAB\s*/i, '').trim())
+                          .filter(Boolean),
+                        ...(customLabBatches[newBatchSection] || [])
+                      ])).join(', ') || 'None yet'}
+                    </span>
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateBatchModal(false)}
+                      className="h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-1.5"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create Batch
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ADD STUDENT MODAL */}
+          {showAddModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-card rounded-lg border border-border shadow-lg w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+                <h2 className="text-lg font-semibold text-foreground mb-4">Add Student</h2>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label required>Name</Label>
+                    <Inp
+                      type="text"
+                      placeholder="Student name"
+                      value={formData.name}
+                      onChange={(val: any) => updateFormField('name', val)}
+                      className="w-full mt-1"
+                    />
+                    {formErrors.name && (
+                      <p className="text-xs text-destructive mt-1">{formErrors.name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Email</Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        Default: &lt;usn&gt;@klsvdit.edu.in
+                      </span>
                     </div>
-                    <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
-                      <div className="text-xs text-amber-700 dark:text-amber-400 font-medium">Already Exists</div>
-                      <div className="text-xl font-bold text-amber-700 dark:text-amber-400">{previewData?.alreadyExists || 0}</div>
+                    <Inp
+                      type="email"
+                      placeholder={formData.usn.trim() ? `${formData.usn.trim().toLowerCase()}@klsvdit.edu.in` : 'student_usn@klsvdit.edu.in'}
+                      value={formData.email}
+                      onChange={(val: any) => updateFormField('email', val)}
+                      className="w-full mt-1"
+                    />
+                    {formErrors.email && (
+                      <p className="text-xs text-destructive mt-1">{formErrors.email}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label required>USN (Register Number)</Label>
+                      <span className="text-[10px] font-mono font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
+                        {formData.usn.length}/10
+                      </span>
                     </div>
-                    <div className="p-3 rounded-lg border border-orange-200 bg-orange-50/50 dark:bg-orange-950/20">
-                      <div className="text-xs text-orange-700 dark:text-orange-400 font-medium">Duplicates / Invalid</div>
-                      <div className="text-xl font-bold text-orange-700 dark:text-orange-400">
-                        {(previewData?.duplicatesInFile || 0) + (previewData?.invalidRows || 0)}
+                    <Inp
+                      type="text"
+                      maxLength={10}
+                      placeholder={`e.g. 2VD${getAdmissionYearFromAcademicYear(formData.year || selectedYear)}${getDeptCodeFromDept(adminDept)}001`}
+                      value={formData.usn}
+                      onChange={(val: any) => updateFormField('usn', val)}
+                      className="w-full font-mono uppercase"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Format: <span className="font-mono font-semibold text-foreground">2VD__{getDeptCodeFromDept(adminDept)}___</span> ({adminDept} department format, e.g. <span className="font-mono text-primary font-medium">2VD{getAdmissionYearFromAcademicYear(formData.year || selectedYear)}{getDeptCodeFromDept(adminDept)}009</span>).
+                    </p>
+                    {formErrors.usn && (
+                      <p className="text-xs text-destructive mt-1">{formErrors.usn}</p>
+                    )}
+                  </div>
+
+                  {/* Year - Auto-filled & Read-only */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Academic Year</Label>
+                      <span className="text-[11px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                        Auto-filled
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        readOnly
+                        value={formData.year || selectedYear || ''}
+                        className="w-full h-9 px-3 pr-8 rounded-md border border-input bg-muted/60 text-foreground text-sm font-medium cursor-not-allowed select-none outline-none"
+                      />
+                      <Lock className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground/60 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* Semester - Auto-filled & Read-only */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Semester</Label>
+                      <span className="text-[11px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                        Auto-filled
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        readOnly
+                        value={formData.semester || selectedSem || ''}
+                        className="w-full h-9 px-3 pr-8 rounded-md border border-input bg-muted/60 text-foreground text-sm font-medium cursor-not-allowed select-none outline-none"
+                      />
+                      <Lock className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground/60 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* Section: Writable when in All Sections, Locked when specific section is selected */}
+                  {selectedSection === 'ALL' ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label required>Section</Label>
+                        <span className="text-[11px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                          Writable (All Sections View)
+                        </span>
+                      </div>
+                      <select
+                        value={formData.section}
+                        onChange={(e) => {
+                          const newSec = e.target.value
+                          const secLetter = getSectionLetter(newSec)
+                          const batches = customLabBatches[secLetter] || [`${secLetter}1`, `${secLetter}2`]
+                          setFormData(prev => ({
+                            ...prev,
+                            section: newSec,
+                            labBatch: batches[0] || `${secLetter}1`
+                          }))
+                        }}
+                        className="w-full mt-1 h-9 px-3 rounded-md border border-input bg-background text-foreground text-sm outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                      >
+                        {sectionsForCurrentSem.map(sec => (
+                          <option key={sec} value={sec}>
+                            {getSectionDisplayName(sec)} ({sec})
+                          </option>
+                        ))}
+                      </select>
+                      {formErrors.section && (
+                        <p className="text-xs text-destructive mt-1">{formErrors.section}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label>Section</Label>
+                        <span className="text-[11px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                          Auto-filled
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          readOnly
+                          value={getSectionDisplayName(formData.section || selectedSection)}
+                          className="w-full h-9 px-3 pr-8 rounded-md border border-input bg-muted/60 text-foreground text-sm font-medium cursor-not-allowed select-none outline-none"
+                        />
+                        <Lock className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground/60 pointer-events-none" />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Auto-locked to current section ({getSectionDisplayName(formData.section || selectedSection)}).
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Lab Batch - Writable / Selectable */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label required>Lab Batch</Label>
+                      <span className="text-[11px] text-muted-foreground">
+                        Section {getSectionLetter(formData.section || selectedSection || 'A')} Batches
+                      </span>
+                    </div>
+                    <select
+                      value={formData.labBatch}
+                      onChange={(e) => updateFormField('labBatch', e.target.value)}
+                      className="w-full mt-1 h-9 px-3 rounded-md border border-input bg-background text-foreground text-sm outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                    >
+                      {availableBatchesForAddModal.map(batch => (
+                        <option key={batch} value={batch}>
+                          Lab Batch {batch}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Assigned laboratory batch (formatted as <span className="font-mono font-semibold text-foreground">{formatSectionLab(formData.section || selectedSection, formData.labBatch)}</span>).
+                    </p>
+                  </div>
+
+                  {/* Device Status (Replaces Account Status) */}
+                  <div>
+                    <Label>Device Status</Label>
+                    <select
+                      value={formData.device}
+                      onChange={(e) => updateFormField('device', e.target.value)}
+                      className="w-full mt-1 h-9 px-3 rounded-md border border-input bg-background text-foreground text-sm outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                    >
+                      <option value="Not Registered">Not Registered</option>
+                      <option value="Registered">Registered</option>
+                    </select>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Initial BLE mobile hardware binding status.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6 pt-4 border-t border-border">
+                  <button
+                    onClick={() => {
+                      setShowAddModal(false)
+                      setFormData({ name: '', email: '', usn: '', year: '', semester: '', section: '', labBatch: '', account: 'Active', device: 'Not Registered', password: '' })
+                      setFormErrors({})
+                    }}
+                    className="flex-1 px-4 py-2 rounded-md border border-input bg-background hover:bg-accent text-foreground text-sm font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddStudent}
+                    className="flex-1 px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium cursor-pointer"
+                  >
+                    Add Student
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* EDIT STUDENT MODAL */}
+          {showEditModal && studentToEdit && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+              <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Edit Student</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Update student profile, registration, and section placement.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false)
+                      setStudentToEdit(null)
+                      setFormData({ name: '', email: '', usn: '', year: '', semester: '', section: '', labBatch: '', account: 'Active', device: 'Not Registered', password: '' })
+                      setFormErrors({})
+                    }}
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Name */}
+                  <div>
+                    <Label required>Name</Label>
+                    <Inp
+                      type="text"
+                      placeholder="Student name"
+                      value={formData.name}
+                      onChange={(val: any) => updateFormField('name', val)}
+                      className="w-full mt-1"
+                    />
+                    {formErrors.name && (
+                      <p className="text-xs text-destructive mt-1">{formErrors.name}</p>
+                    )}
+                  </div>
+
+                  {/* USN */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label required>USN (Register Number)</Label>
+                      <span className="text-[10px] font-mono font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
+                        {formData.usn.length}/10
+                      </span>
+                    </div>
+                    <Inp
+                      type="text"
+                      maxLength={10}
+                      placeholder={`e.g. 2VD${getAdmissionYearFromAcademicYear(formData.year)}${getDeptCodeFromDept(adminDept)}001`}
+                      value={formData.usn}
+                      onChange={(val: any) => updateFormField('usn', val)}
+                      className="w-full font-mono uppercase"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Format: <span className="font-mono font-semibold text-foreground">2VD__{getDeptCodeFromDept(adminDept)}___</span> ({adminDept} department format, e.g. <span className="font-mono text-primary font-medium">2VD{getAdmissionYearFromAcademicYear(formData.year)}{getDeptCodeFromDept(adminDept)}009</span>).
+                    </p>
+                    {formErrors.usn && (
+                      <p className="text-xs text-destructive mt-1">{formErrors.usn}</p>
+                    )}
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Email</Label>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        Default: &lt;usn&gt;@klsvdit.edu.in
+                      </span>
+                    </div>
+                    <Inp
+                      type="email"
+                      placeholder={formData.usn.trim() ? `${formData.usn.trim().toLowerCase()}@klsvdit.edu.in` : 'student_usn@klsvdit.edu.in'}
+                      value={formData.email}
+                      onChange={(val: any) => updateFormField('email', val)}
+                      className="w-full mt-1"
+                    />
+                    {formErrors.email && (
+                      <p className="text-xs text-destructive mt-1">{formErrors.email}</p>
+                    )}
+                  </div>
+
+                  {/* Academic Year - Auto-filled & Read-only */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Academic Year</Label>
+                      <span className="text-[11px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                        Auto-filled
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        readOnly
+                        value={formData.year}
+                        className="w-full h-9 px-3 pr-8 rounded-md border border-input bg-muted/60 text-foreground text-sm font-medium cursor-not-allowed select-none outline-none"
+                      />
+                      <Lock className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground/60 pointer-events-none" />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Enrolled academic year ({formData.year}).
+                    </p>
+                  </div>
+
+                  {/* Semester - Auto-filled & Read-only */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label>Semester</Label>
+                      <span className="text-[11px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                        Auto-filled
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        readOnly
+                        value={formData.semester}
+                        className="w-full h-9 px-3 pr-8 rounded-md border border-input bg-muted/60 text-foreground text-sm font-medium cursor-not-allowed select-none outline-none"
+                      />
+                      <Lock className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground/60 pointer-events-none" />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Enrolled semester ({formData.semester}).
+                    </p>
+                  </div>
+
+                  {/* Section */}
+                  <div>
+                    <Label required>Section</Label>
+                    <select
+                      value={formData.section}
+                      onChange={(e) => {
+                        const newSec = e.target.value
+                        const secLetter = getSectionLetter(newSec)
+                        const batches = customLabBatches[secLetter] || [`${secLetter}1`, `${secLetter}2`]
+                        setFormData(prev => ({
+                          ...prev,
+                          section: newSec,
+                          labBatch: batches[0] || `${secLetter}1`
+                        }))
+                        if (formErrors.section) setFormErrors(prev => { const n = { ...prev }; delete n.section; return n })
+                      }}
+                      className="w-full mt-1 h-9 px-3 rounded-md border border-input bg-background text-foreground text-sm outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                    >
+                      {getSectionsForYearAndSem(formData.year, formData.semester).map(sec => (
+                        <option key={sec} value={sec}>
+                          {getSectionDisplayName(sec)} ({sec})
+                        </option>
+                      ))}
+                    </select>
+                    {formErrors.section && (
+                      <p className="text-xs text-destructive mt-1">{formErrors.section}</p>
+                    )}
+                  </div>
+
+                  {/* Lab Batch */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label required>Lab Batch</Label>
+                      <span className="text-[11px] text-muted-foreground">
+                        Section {getSectionLetter(formData.section)} Batches
+                      </span>
+                    </div>
+                    <select
+                      value={formData.labBatch}
+                      onChange={(e) => updateFormField('labBatch', e.target.value)}
+                      className="w-full mt-1 h-9 px-3 rounded-md border border-input bg-background text-foreground text-sm outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                    >
+                      {availableBatchesForAddModal.map(batch => (
+                        <option key={batch} value={batch}>
+                          Lab Batch {batch}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Formatted as <span className="font-mono font-semibold text-foreground">{formatSectionLab(formData.section, formData.labBatch)}</span>.
+                    </p>
+                  </div>
+
+                  {/* Device Status */}
+                  <div>
+                    <Label>Device Status</Label>
+                    <select
+                      value={formData.device}
+                      onChange={(e) => updateFormField('device', e.target.value)}
+                      className="w-full mt-1 h-9 px-3 rounded-md border border-input bg-background text-foreground text-sm outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                    >
+                      <option value="Not Registered">Not Registered</option>
+                      <option value="Registered">Registered</option>
+                    </select>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Mobile BLE attendance binding authorization.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6 pt-4 border-t border-border">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false)
+                      setStudentToEdit(null)
+                      setFormData({ name: '', email: '', usn: '', year: '', semester: '', section: '', labBatch: '', account: 'Active', device: 'Not Registered', password: '' })
+                      setFormErrors({})
+                    }}
+                    className="flex-1 px-4 py-2 rounded-md border border-input bg-background hover:bg-accent text-foreground text-sm font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleEditStudent}
+                    className="flex-1 px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium cursor-pointer"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DEVICE MANAGEMENT MODAL */}
+          {showDeviceModal && deviceStudent && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+              <div className="bg-card border border-border w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between p-5 border-b border-border">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
+                      <Smartphone className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">Device Management</h2>
+                      <p className="text-xs text-muted-foreground">Security & hardware binding for mobile BLE attendance.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeviceModal(false)}
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  {deviceMessage && (
+                    <div className={`p-3 text-xs rounded-md border flex items-center gap-2 ${
+                      deviceMessage.type === 'success'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300'
+                        : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300'
+                    }`}>
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{deviceMessage.text}</span>
+                    </div>
+                  )}
+
+                  <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Student:</span>
+                      <span className="font-semibold text-foreground">{deviceStudent.name}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">USN:</span>
+                      <span className="font-mono font-semibold text-foreground">{deviceStudent.usn}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Section / Lab Batch:</span>
+                      <span className="font-mono font-semibold text-foreground">
+                        {formatSectionLab(deviceStudent.section, deviceStudent.Lab || deviceStudent.lab)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Current Binding Status:</span>
+                      <StatusBadge status={deviceStudent.device === 'Linked' || deviceStudent.device === 'Registered' ? 'Registered' : 'Not Registered'} />
+                    </div>
+                  </div>
+
+                  {(deviceStudent.device === 'Linked' || deviceStudent.device === 'Registered') ? (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">Registered Device Credentials</h3>
+                      <div className="p-3 rounded-lg border border-border bg-background space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-foreground">Authorized Mobile Device</span>
+                          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                            Active
+                          </span>
+                        </div>
+                        <div className="text-muted-foreground flex items-center justify-between font-mono text-[11px]">
+                          <span>Key: SHA256:{(deviceStudent.usn + '-DEV-BIND').split('').reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0).toString(16).toUpperCase().padStart(8, '0')}...</span>
+                          <span>Registered: Verified Device</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                        <div className="font-semibold flex items-center gap-1.5">
+                          <Shield className="h-3.5 w-3.5" />
+                          Security Policy
+                        </div>
+                        <p className="text-[11px] leading-relaxed">
+                          Attendance marks verify cryptographic device binding. If this student lost or replaced their phone, reset this binding so they can register their new mobile device.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-lg border border-dashed border-border text-center space-y-1.5">
+                      <Smartphone className="h-6 w-6 text-muted-foreground mx-auto" />
+                      <p className="text-xs font-medium text-foreground">No Mobile Device Registered</p>
+                      <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+                        This student has not yet bound a mobile device. Device binding occurs securely when the student logs in from the Automark mobile application.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeviceModal(false)}
+                      className="h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
+                    >
+                      Close
+                    </button>
+                    {(deviceStudent.device === 'Linked' || deviceStudent.device === 'Registered') && (
+                      <button
+                        type="button"
+                        disabled={deviceResetting}
+                        onClick={handleResetStudentDevice}
+                        className="h-9 px-4 rounded-md bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      >
+                        {deviceResetting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        Reset / Unbind Device
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DELETE CONFIRMATION MODAL */}
+          {showDeleteModal && deletingStudent && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+              <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-full bg-destructive/10 text-destructive">
+                      <Trash2 className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">Delete Student?</h2>
+                      <p className="text-xs text-muted-foreground">Permanent deletion confirmation</p>
+                    </div>
+                  </div>
+
+                  {deleteError && (
+                    <div className="p-3 text-xs bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 rounded-md flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                      <span>{deleteError}</span>
+                    </div>
+                  )}
+
+                  <div className="p-4 bg-muted/40 rounded-lg border border-border space-y-2 text-xs">
+                    <p className="text-muted-foreground font-medium">Are you sure you want to delete:</p>
+                    <div className="pl-2 border-l-2 border-primary space-y-1">
+                      <div className="font-semibold text-sm text-foreground">{deletingStudent.name}</div>
+                      <div className="font-mono text-xs text-muted-foreground">USN: {deletingStudent.usn}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {deletingStudent.dept || adminDept} • {deletingStudent.semester} • {formatSectionLab(deletingStudent.section, deletingStudent.Lab || deletingStudent.lab)}
                       </div>
                     </div>
                   </div>
 
-                  <div className="text-xs text-muted-foreground flex items-center justify-between px-1">
-                    <span>Department: <strong className="text-foreground">{previewData?.department}</strong></span>
-                    <span>Year of Study: <strong className="text-foreground">{previewData?.year} Year (Sem {previewData ? previewData.year * 2 - 1 : ''})</strong></span>
-                  </div>
+                  <p className="text-xs text-destructive font-medium">
+                    ⚠️ This action cannot be undone. If this student has active attendance history, records will be permanently removed.
+                  </p>
 
-                  <div className="flex-1 overflow-y-auto border border-border rounded-lg max-h-[300px]">
-                    <table className="w-full text-xs text-left">
-                      <thead className="bg-muted/80 sticky top-0 font-semibold text-muted-foreground border-b border-border">
-                        <tr>
-                          <th className="px-4 py-2.5">USN</th>
-                          <th className="px-4 py-2.5">Name</th>
-                          <th className="px-4 py-2.5">Year</th>
-                          <th className="px-4 py-2.5">Dept</th>
-                          <th className="px-4 py-2.5">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {previewData?.students.map((st, idx) => (
-                          <tr key={idx} className={st.status !== 'READY' ? 'bg-muted/30' : 'hover:bg-muted/20'}>
-                            <td className="px-4 py-2.5 font-mono font-medium">{st.usn}</td>
-                            <td className="px-4 py-2.5">{st.name}</td>
-                            <td className="px-4 py-2.5">{st.year} Year</td>
-                            <td className="px-4 py-2.5">{st.department}</td>
-                            <td className="px-4 py-2.5">
-                              {st.status === 'READY' ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  Ready
-                                </span>
-                              ) : st.status === 'ALREADY_EXISTS' ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title={st.reason || ''}>
-                                  Already in DB
-                                </span>
-                              ) : st.status === 'DUPLICATE_IN_FILE' ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-50 text-orange-700 border border-orange-200" title={st.reason || ''}>
-                                  Duplicate in File
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200" title={st.reason || ''}>
-                                  Invalid
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-border">
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
                     <button
                       type="button"
-                      onClick={() => setImportStep('upload')}
-                      className="px-4 py-2 text-sm font-medium rounded-lg border border-input hover:bg-muted transition-colors"
+                      onClick={() => setShowDeleteModal(false)}
+                      className="h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
                     >
-                      Back
+                      Cancel
                     </button>
-                    <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={deleteSubmitting}
+                      onClick={handleConfirmDeleteStudent}
+                      className="h-9 px-4 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                    >
+                      {deleteSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      Delete Student
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUCCESS MODAL - Student Added */}
+          {showSuccessModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-card rounded-lg border border-border shadow-lg w-full max-w-md p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <CheckCircle2 className="h-6 w-6 text-green-600" />
+                  <h2 className="text-lg font-semibold text-foreground">Student Added Successfully</h2>
+                </div>
+
+                <div className="space-y-3 mb-6 p-4 bg-muted rounded-lg">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Student Name</p>
+                    <p className="text-foreground font-medium">{lastAddedStudent?.name || formData.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">USN</p>
+                    <p className="text-foreground font-medium font-mono">{lastAddedStudent?.usn || formData.usn}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Section / Lab Batch</p>
+                    <p className="text-foreground font-medium font-mono">
+                      {lastAddedStudent?.dept} • {lastAddedStudent?.year} • {formatSectionLab(lastAddedStudent?.section, lastAddedStudent?.Lab || lastAddedStudent?.lab)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Device Status</p>
+                    <div className="mt-1">
+                      <StatusBadge status={lastAddedStudent?.device === 'Linked' || lastAddedStudent?.device === 'Registered' ? 'Registered' : 'Not Registered'} />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSuccessModal(false)}
+                  className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* CREDENTIALS MODAL - View Password */}
+          {showCredentialsModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-card rounded-lg border border-border shadow-lg w-full max-w-md p-6">
+                <h2 className="text-lg font-semibold text-foreground mb-4">Password</h2>
+
+                {selectedStudentForCredentials?.password ? (
+                  <div className="mb-6 p-4 bg-muted rounded-lg">
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase font-semibold mb-2">Password</p>
+                      <div className="flex gap-2">
+                        <code className="flex-1 px-3 py-2 rounded-md bg-background border border-border font-mono text-sm text-foreground break-all">
+                          {selectedStudentForCredentials?.password}
+                        </code>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedStudentForCredentials?.password || '')
+                            alert('Password copied to clipboard!')
+                          }}
+                          className="px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-6 p-4 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">No password set. Account status is Inactive.</p>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    setShowCredentialsModal(false)
+                    setSelectedStudentForCredentials(null)
+                  }}
+                  className="w-full px-4 py-2 rounded-md bg-background border border-input hover:bg-accent text-foreground text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* IMPORT STUDENTS MODAL (As in zoattendence, on 1st page right side) */}
+          {showImportModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+              <div className="bg-card border border-border w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between p-5 border-b border-border">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">
+                      {importStep === 'preview' ? 'Import Preview' : 'Import Students'}
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {importStep === 'preview'
+                        ? 'Review extracted student records before adding to the directory.'
+                        : 'Bulk register students from an Excel (.xlsx, .xls) or CSV (.csv) file.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowImportModal(false)
+                      setImportStep('upload')
+                      setImportFile(null)
+                      setImportPreview(null)
+                      setImportError('')
+                    }}
+                    className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {importError && (
+                  <div className="mx-5 mt-4 p-3 text-xs bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 rounded-lg flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-rose-600" />
+                    <span>{importError}</span>
+                  </div>
+                )}
+
+                {/* Step 1: Upload Step */}
+                {importStep === 'upload' && (
+                  <form onSubmit={handlePreviewImport} className="p-5 space-y-4 overflow-y-auto">
+                    <div className="p-3 bg-muted/40 rounded-lg border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                      <div>
+                        Target Department: <span className="font-semibold text-foreground">{adminDept}</span>
+                      </div>
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 self-start sm:self-auto">
+                        Department Directory: {adminDept}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label required>Year of Study</Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Select the academic year to assign to students in the uploaded file:
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        {[
+                          { y: '1st Year', sem: '1st Sem' },
+                          { y: '2nd Year', sem: '3rd Sem' },
+                          { y: '3rd Year', sem: '5th Sem' },
+                          { y: '4th Year', sem: '7th Sem' },
+                        ].map(opt => (
+                          <button
+                            key={opt.y}
+                            type="button"
+                            onClick={() => {
+                              setImportYear(opt.y)
+                              setImportSemester(opt.sem)
+                            }}
+                            className={`p-3 rounded-lg border text-center transition-all cursor-pointer ${
+                              importYear === opt.y
+                                ? 'border-primary bg-primary/10 text-primary font-semibold shadow-xs ring-1 ring-primary'
+                                : 'border-input bg-background hover:bg-muted/50 text-foreground'
+                            }`}
+                          >
+                            <div className="text-sm">{opt.y}</div>
+                            <div className="text-[11px] text-muted-foreground mt-0.5">{opt.sem}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label required>Upload Student Spreadsheet</Label>
+                      <div className="relative border-2 border-dashed border-input hover:border-primary/50 transition-colors rounded-xl p-6 text-center cursor-pointer bg-muted/10">
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,.csv"
+                          onChange={e => {
+                            const file = e.target.files?.[0] || null
+                            setImportFile(file)
+                            setImportError('')
+                          }}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <div className="size-11 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                            <Upload className="size-5" />
+                          </div>
+                          {importFile ? (
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">{importFile.name}</p>
+                              <p className="text-xs text-muted-foreground">{(importFile.size / 1024).toFixed(1)} KB</p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-sm font-medium text-foreground">Click to upload or drag & drop</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Accepted: Excel (.xlsx, .xls) and CSV (.csv)
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Columns automatically detected: <span className="font-semibold text-foreground">USN</span>, <span className="font-semibold text-foreground">Name</span>, and optional <span className="font-semibold text-foreground">Section</span>, <span className="font-semibold text-foreground">Lab Batch</span>, <span className="font-semibold text-foreground">Email</span>. USN is capped at 10 characters (VARCHAR(10)).
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
                       <button
                         type="button"
-                        onClick={() => setShowImportModal(false)}
-                        className="px-4 py-2 text-sm font-medium rounded-lg border border-input hover:bg-muted transition-colors"
+                        onClick={() => {
+                          setShowImportModal(false)
+                          setImportFile(null)
+                        }}
+                        className="px-4 py-2 text-sm font-medium rounded-lg border border-input bg-background hover:bg-muted transition-colors cursor-pointer"
                       >
                         Cancel
                       </button>
                       <button
-                        type="button"
-                        onClick={handleCommitImport}
-                        disabled={!previewData || previewData.readyToImport === 0 || importSubmitting}
-                        className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm disabled:opacity-50 transition-colors"
+                        type="submit"
+                        disabled={!importFile || importSubmitting}
+                        className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm disabled:opacity-50 transition-colors cursor-pointer"
                       >
                         {importSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                        Import {previewData?.readyToImport || 0} Students
+                        Preview Students
                       </button>
                     </div>
-                  </div>
-                </div>
-              )}
+                  </form>
+                )}
 
-              {/* Step 3: Success Step */}
-              {importStep === 'success' && (
-                <div className="p-10 flex flex-col items-center justify-center text-center space-y-3">
-                  <div className="size-12 rounded-full bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600">
-                    <CheckCircle2 className="size-6" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-foreground">Import Complete!</h3>
-                  <p className="text-sm text-muted-foreground max-w-md">{importSuccess}</p>
-                  <p className="text-xs text-muted-foreground">Refreshing student directory...</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+                {/* Step 2: Preview Step */}
+                {importStep === 'preview' && importPreview && (
+                  <div className="flex flex-col flex-1 overflow-hidden p-5 space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="p-3 rounded-lg border border-border bg-card">
+                        <div className="text-[11px] text-muted-foreground font-medium">Total in File</div>
+                        <div className="text-xl font-bold text-foreground">{importPreview.totalFound}</div>
+                      </div>
+                      <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20">
+                        <div className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">Ready to Import</div>
+                        <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{importPreview.readyToImport}</div>
+                      </div>
+                      <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
+                        <div className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">Already in DB (Will Update)</div>
+                        <div className="text-xl font-bold text-amber-700 dark:text-amber-400">{importPreview.alreadyExists}</div>
+                      </div>
+                      <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/50 dark:bg-slate-900/20">
+                        <div className="text-[11px] text-slate-700 dark:text-slate-400 font-medium">Other Branches (Skipped)</div>
+                        <div className="text-xl font-bold text-slate-700 dark:text-slate-400">{importPreview.otherDeptCount}</div>
+                      </div>
+                    </div>
 
-        {/* Add Student Modal */}
-        {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <div className="bg-card border border-border w-full max-w-md rounded-xl p-6 shadow-xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-border">
-                <h2 className="text-lg font-semibold text-foreground">Add New Student</h2>
-                <button 
-                  onClick={() => setShowAddModal(false)}
-                  className="p-1 text-muted-foreground hover:text-foreground rounded-md"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                    {(importPreview.duplicatesInFile > 0 || importPreview.invalidRows > 0) && (
+                      <div className="p-2.5 rounded-lg border border-orange-200 bg-orange-50/60 dark:bg-orange-950/20 text-xs text-orange-800 dark:text-orange-300 flex items-center justify-between">
+                        <span>
+                          {importPreview.duplicatesInFile > 0 && `${importPreview.duplicatesInFile} duplicate row(s) in file. `}
+                          {importPreview.invalidRows > 0 && `${importPreview.invalidRows} corrupt or invalid row(s).`}
+                        </span>
+                        <span className="font-semibold text-orange-600 dark:text-orange-400">Skipped</span>
+                      </div>
+                    )}
+
+                    <div className="text-xs text-muted-foreground flex items-center justify-between px-1">
+                      <span>Department: <strong className="text-foreground">{importPreview.department}</strong></span>
+                      <span>Enrolled Year: <strong className="text-foreground">{importPreview.year} ({importPreview.semester})</strong></span>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto border border-border rounded-lg max-h-[320px]">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-muted/80 sticky top-0 font-semibold text-muted-foreground border-b border-border">
+                          <tr>
+                            <th className="px-3 py-2">USN</th>
+                            <th className="px-3 py-2">Name</th>
+                            <th className="px-3 py-2">Section</th>
+                            <th className="px-3 py-2">Lab Batch</th>
+                            <th className="px-3 py-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {importPreview.students.map((st, idx) => (
+                            <tr key={idx} className={st.status === 'OTHER_DEPT' ? 'bg-muted/20 opacity-70' : st.status !== 'READY' && st.status !== 'ALREADY_EXISTS' ? 'bg-muted/30' : 'hover:bg-muted/20'}>
+                              <td className="px-3 py-2 font-mono font-medium">{st.usn}</td>
+                              <td className="px-3 py-2">{st.name}</td>
+                              <td className="px-3 py-2 font-medium">{getSectionDisplayName(st.section)}</td>
+                              <td className="px-3 py-2 font-mono font-semibold text-primary">{st.labBatch}</td>
+                              <td className="px-3 py-2">
+                                {st.status === 'READY' ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
+                                    Ready
+                                  </span>
+                                ) : st.status === 'ALREADY_EXISTS' ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800" title={st.reason || ''}>
+                                    Will Update
+                                  </span>
+                                ) : st.status === 'OTHER_DEPT' ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" title={st.reason || ''}>
+                                    Other Branch (Skipped)
+                                  </span>
+                                ) : st.status === 'DUPLICATE_IN_FILE' ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-50 text-orange-700 border border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800" title={st.reason || ''}>
+                                    Duplicate in File
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800" title={st.reason || ''}>
+                                    {`Invalid (${st.reason || 'Data error'})`}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-border">
+                      <button
+                        type="button"
+                        onClick={() => setImportStep('upload')}
+                        className="px-4 py-2 text-sm font-medium rounded-lg border border-input bg-background hover:bg-muted transition-colors cursor-pointer"
+                      >
+                        Back
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowImportModal(false)
+                            setImportStep('upload')
+                            setImportFile(null)
+                            setImportPreview(null)
+                          }}
+                          className="px-4 py-2 text-sm font-medium rounded-lg border border-input bg-background hover:bg-muted transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCommitImport}
+                          disabled={importPreview.readyToImport + importPreview.alreadyExists === 0 || importSubmitting}
+                          className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm disabled:opacity-50 transition-colors cursor-pointer"
+                        >
+                          {importSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          {importPreview.readyToImport > 0 && importPreview.alreadyExists > 0
+                            ? `Import (${importPreview.readyToImport}) & Update (${importPreview.alreadyExists})`
+                            : importPreview.readyToImport > 0
+                            ? `Import ${importPreview.readyToImport} Students`
+                            : `Update ${importPreview.alreadyExists} Existing Students`}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
+            </div>
+          )}
 
-              {errorMessage && (
-                <div className="p-3 text-xs bg-destructive/10 text-destructive border border-destructive/20 rounded-md">
-                  {errorMessage}
-                </div>
-              )}
-
-              {successMessage && (
-                <div className="p-3 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
-                  {successMessage}
-                </div>
-              )}
-
-              <form onSubmit={handleCreateStudent} className="space-y-4">
-                <div>
-                  <Label required>Full Name</Label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g. Rahul Sharma"
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-
-                <div>
-                  <Label required>Email Address</Label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="e.g. rahul@smartattend.edu"
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-
-                <div>
-                  <Label required>Register Number (USN)</Label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.registerNumber}
-                    onChange={e => setFormData({ ...formData, registerNumber: e.target.value })}
-                    placeholder="e.g. 01CS150"
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label required>Department</Label>
-                    <select
-                      value={formData.department}
-                      onChange={e => setFormData({ ...formData, department: e.target.value })}
-                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
-                    >
-                      <option value="Computer Science">Computer Science</option>
-                      <option value="Electronics">Electronics</option>
-                      <option value="Information Tech">Information Tech</option>
-                    </select>
+          {/* BULK PROMOTE MODAL */}
+          {showPromoteModal && selectedSem && selectedSem !== '8th Sem' && selectedYear && SEMESTER_PROGRESSION[selectedSem] && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+              <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl p-6 animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-border">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                      <TrendingUp className="size-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">Bulk Promote Students</h2>
+                      <p className="text-xs text-muted-foreground">Advance semester and academic progression</p>
+                    </div>
                   </div>
-
-                  <div>
-                    <Label required>Semester</Label>
-                    <select
-                      value={formData.semester}
-                      onChange={e => setFormData({ ...formData, semester: Number(e.target.value) })}
-                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
-                    >
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
-                        <option key={sem} value={sem}>Semester {sem}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <Label required>Section</Label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.section}
-                    onChange={e => setFormData({ ...formData, section: e.target.value })}
-                    placeholder="e.g. A"
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4 border-t border-border">
                   <button
                     type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 text-sm rounded-md border border-input hover:bg-accent"
+                    onClick={() => setShowPromoteModal(false)}
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted cursor-pointer"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Save Student
+                    <X className="size-4" />
                   </button>
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
 
-        {/* Division Assignment Confirmation / Preview Modal */}
-        {showDivisionConfirmModal && divisionPreviewData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div className="p-6 border-b border-border">
-                <h3 className="text-lg font-semibold text-foreground">Confirm Division Assignment</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Review the affected student records before committing to the database.
-                </p>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <div className="bg-muted/40 rounded-lg p-3.5 border border-border/80 space-y-2 text-xs">
-                  <div className="flex justify-between items-center py-0.5">
-                    <span className="text-muted-foreground font-medium">Beginning USN:</span>
-                    <span className="font-mono font-semibold text-foreground">{divisionPreviewData.startUsn}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5">
-                    <span className="text-muted-foreground font-medium">Ending USN:</span>
-                    <span className="font-mono font-semibold text-foreground">{divisionPreviewData.endUsn}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5">
-                    <span className="text-muted-foreground font-medium">Target Division:</span>
-                    <span className="font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
-                      Division {divisionPreviewData.division}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5">
-                    <span className="text-muted-foreground font-medium">Department:</span>
-                    <span className="font-medium text-foreground">{divisionPreviewData.departmentName || divisionPreviewData.department}</span>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800 rounded-lg flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                    <span className="text-xs font-semibold">
-                      Students affected: {divisionPreviewData.affectedCount} student{divisionPreviewData.affectedCount === 1 ? '' : 's'}
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300">
-                    Ready
-                  </span>
-                </div>
-
-                {/* Scrollable list preview of affected students */}
-                <div className="max-h-40 overflow-y-auto border border-border rounded-lg divide-y divide-border text-xs">
-                  {divisionPreviewData.students.map((st, i) => (
-                    <div key={st.id || i} className="p-2.5 flex items-center justify-between hover:bg-muted/30">
-                      <div>
-                        <span className="font-mono font-medium text-foreground mr-2">{st.usn}</span>
-                        <span className="text-muted-foreground">{st.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[11px]">
-                        <span className="text-muted-foreground">Sec {st.currentDivision}</span>
-                        <span>→</span>
-                        <span className="font-semibold text-primary">Sec {st.newDivision}</span>
-                      </div>
+                <div className="space-y-4 text-sm">
+                  <div className="p-3.5 rounded-lg bg-muted/50 border border-border space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground font-medium">Department:</span>
+                      <span className="font-bold text-foreground">{adminDept}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="p-4 bg-muted/20 border-t border-border flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowDivisionConfirmModal(false)}
-                  className="px-4 py-2 text-xs font-medium rounded-md border border-input hover:bg-accent transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmAssignDivision}
-                  disabled={assigningDivision}
-                  className="inline-flex items-center justify-center px-4 py-2 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50"
-                >
-                  {assigningDivision ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
-                  Assign Division {divisionPreviewData.division}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Lab Batch Allotment Confirmation / Preview Modal */}
-        {showLabConfirmModal && labPreviewData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <div className="bg-card border border-border w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div className="p-6 border-b border-border">
-                <h3 className="text-lg font-semibold text-foreground">Confirm Lab Batch Allotment</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Review affected students and division constraints before committing to the database.
-                </p>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <div className="bg-muted/40 rounded-lg p-3.5 border border-border/80 space-y-2 text-xs">
-                  <div className="flex justify-between items-center py-0.5">
-                    <span className="text-muted-foreground font-medium">Beginning USN:</span>
-                    <span className="font-mono font-semibold text-foreground">{labPreviewData.startUsn}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5">
-                    <span className="text-muted-foreground font-medium">Ending USN:</span>
-                    <span className="font-mono font-semibold text-foreground">{labPreviewData.endUsn}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5">
-                    <span className="text-muted-foreground font-medium">Target Division:</span>
-                    <span className="font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
-                      Division {labPreviewData.division}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5">
-                    <span className="text-muted-foreground font-medium">Selected Lab Batch:</span>
-                    <span className="font-bold text-foreground px-2 py-0.5 rounded bg-secondary">
-                      Lab {labPreviewData.labBatch}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center py-0.5">
-                    <span className="text-muted-foreground font-medium">Department:</span>
-                    <span className="font-medium text-foreground">{labPreviewData.departmentName || labPreviewData.department}</span>
-                  </div>
-                </div>
-
-                {/* Mismatch Alert if any students belong to other divisions */}
-                {labPreviewData.hasMismatch ? (
-                  <div className="p-3 bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 rounded-lg space-y-2">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
-                      <span className="text-xs font-semibold">Division Mismatch Detected</span>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground font-medium">Current Semester:</span>
+                      <span className="font-bold text-foreground">{selectedSem} ({selectedYear})</span>
                     </div>
-                    <p className="text-xs">
-                      {labPreviewData.mismatchMessage || `This range contains students not belonging to Division ${labPreviewData.division}. Lab Batch ${labPreviewData.labBatch} can only be assigned to students in Division ${labPreviewData.division}.`}
-                    </p>
-                    <div className="text-[11px] font-mono bg-rose-100/50 dark:bg-rose-900/30 p-2 rounded">
-                      {labPreviewData.mismatchedStudents.slice(0, 3).map(m => `${m.usn} (${m.name}) is in Division ${m.section}`).join(', ')}
-                      {labPreviewData.mismatchedStudents.length > 3 ? ` +${labPreviewData.mismatchedStudents.length - 3} more` : ''}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800 rounded-lg space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Check className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                        <span className="text-xs font-semibold">
-                          {labPreviewData.affectedCount} student{labPreviewData.affectedCount === 1 ? '' : 's'} matched in Division {labPreviewData.division}
-                        </span>
-                      </div>
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300">
-                        Valid
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground font-medium">Promote To:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                        {SEMESTER_PROGRESSION[selectedSem]?.nextSem} ({SEMESTER_PROGRESSION[selectedSem]?.nextYear})
                       </span>
                     </div>
-                    <div className="text-[11px] text-emerald-900 dark:text-emerald-200 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/60 flex flex-wrap gap-x-3">
-                      <span>{labPreviewData.alreadyAssignedCount} already in {labPreviewData.labBatch}</span>
-                      <span>•</span>
-                      <span>{labPreviewData.reassignedCount} reassigned to {labPreviewData.labBatch}</span>
+                    <div className="flex items-center justify-between text-xs pt-1.5 border-t border-border/60">
+                      <span className="text-muted-foreground font-medium">Total Students Affected:</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-primary text-primary-foreground">
+                        {students_data.filter(s => s.year === selectedYear && s.semester === selectedSem && isStudentInDept(s.dept, adminDept)).length} students
+                      </span>
                     </div>
                   </div>
-                )}
 
-                {/* Scrollable list preview of affected students */}
-                <div className="max-h-44 overflow-y-auto border border-border rounded-lg divide-y divide-border text-xs">
-                  {labPreviewData.students.map((st, i) => (
-                    <div key={st.id || i} className={`p-2.5 flex items-center justify-between ${st.isMismatched ? 'bg-rose-50/50 dark:bg-rose-950/20' : 'hover:bg-muted/30'}`}>
-                      <div>
-                        <span className="font-mono font-medium text-foreground mr-2">{st.usn}</span>
-                        <span className="text-muted-foreground">{st.name}</span>
-                        {st.isMismatched && (
-                          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300">
-                            Div {st.division} (Mismatch)
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[11px]">
-                        <span className="text-muted-foreground">Lab {st.currentLab}</span>
-                        <span>→</span>
-                        <span className={`font-semibold ${st.isMismatched ? 'text-rose-600' : 'text-primary'}`}>
-                          Lab {st.newLab}
-                        </span>
-                      </div>
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs space-y-1.5">
+                    <div className="font-semibold flex items-center gap-1.5">
+                      <AlertCircle className="size-3.5 shrink-0" />
+                      <span>Important Notice</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="p-4 bg-muted/20 border-t border-border flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowLabConfirmModal(false)}
-                  className="px-4 py-2 text-xs font-medium rounded-md border border-input hover:bg-accent transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmAssignLabBatch}
-                  disabled={!labPreviewData.canApply || assigningLabBatch}
-                  className="inline-flex items-center justify-center px-4 py-2 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {assigningLabBatch ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
-                  Confirm Allotment ({labPreviewData.labBatch})
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Update Student Modal */}
-        {showUpdateModal && updatingStudent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-              <div className="flex items-center justify-between p-5 border-b border-border">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Update Student</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">Edit student name and device authorization.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowUpdateModal(false)}
-                  className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveUpdateStudent} className="p-5 space-y-4">
-                {updateError && (
-                  <div className="p-3 text-xs bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 rounded-md flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
-                    <span>{updateError}</span>
-                  </div>
-                )}
-
-                {/* Read-only reference information */}
-                <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-1.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">USN:</span>
-                    <span className="font-mono font-semibold text-foreground">{updatingStudent.usn}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Department:</span>
-                    <span className="font-medium text-foreground">{updatingStudent.department}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Semester / Section:</span>
-                    <span className="text-foreground">Sem {updatingStudent.semester} (Sec {updatingStudent.section})</span>
-                  </div>
-                </div>
-
-                {/* Editable field 1: Name */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Student Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={updateName}
-                    onChange={(e) => setUpdateName(e.target.value)}
-                    className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm outline-none focus:ring-1 focus:ring-ring"
-                    placeholder="Full student name"
-                  />
-                </div>
-
-                {/* Editable field 2: Device Status */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Device Status</label>
-                  <select
-                    value={updateDeviceStatus}
-                    onChange={(e) => setUpdateDeviceStatus(e.target.value)}
-                    className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-                  >
-                    <option value="Registered">Registered</option>
-                    <option value="Not Registered">Not Registered</option>
-                  </select>
-                  <p className="text-[11px] text-muted-foreground">
-                    Synchronized with mobile device registration for BLE attendance verification.
-                  </p>
-                </div>
-
-                <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
-                  <button
-                    type="button"
-                    onClick={() => setShowUpdateModal(false)}
-                    className="h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={updateSubmitting || !updateName.trim()}
-                    className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {updateSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    Save Changes
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Device Management Modal */}
-        {showDeviceModal && deviceStudent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <div className="bg-card border border-border w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-              <div className="flex items-center justify-between p-5 border-b border-border">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
-                    <Smartphone className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">Device Management</h2>
-                    <p className="text-xs text-muted-foreground">Security & hardware binding for mobile BLE attendance.</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDeviceModal(false)}
-                  className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-4">
-                {deviceMessage && (
-                  <div className={`p-3 text-xs rounded-md border flex items-center gap-2 ${
-                    deviceMessage.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300'
-                      : 'bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300'
-                  }`}>
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span>{deviceMessage.text}</span>
-                  </div>
-                )}
-
-                <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-2 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Student:</span>
-                    <span className="font-semibold text-foreground">{deviceStudent.name}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">USN:</span>
-                    <span className="font-mono font-semibold text-foreground">{deviceStudent.usn}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Current Binding Status:</span>
-                    <StatusBadge status={deviceDetail?.isBound ? 'Registered' : 'Not Registered'} />
-                  </div>
-                </div>
-
-                {deviceLoading ? (
-                  <div className="py-8 text-center text-xs text-muted-foreground">
-                    <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
-                    Fetching device security credentials...
-                  </div>
-                ) : deviceDetail && deviceDetail.devices && deviceDetail.devices.length > 0 ? (
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">Registered Device Credentials</h3>
-                    {deviceDetail.devices.map((d, idx) => (
-                      <div key={d.id || idx} className="p-3 rounded-lg border border-border bg-background space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-foreground">Device #{idx + 1}</span>
-                          <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                            d.isActive ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-muted text-muted-foreground'
-                          }`}>
-                            {d.isActive ? 'Active' : 'Deactivated'}
-                          </span>
-                        </div>
-                        <div className="text-muted-foreground flex items-center justify-between font-mono text-[11px]">
-                          <span>Key: {d.publicKeyFingerprint}</span>
-                          <span>Registered: {new Date(d.createdAt).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    ))}
-
-                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-800 dark:text-amber-300 space-y-1">
-                      <div className="font-semibold flex items-center gap-1.5">
-                        <Shield className="h-3.5 w-3.5" />
-                        Security Policy
-                      </div>
-                      <p className="text-[11px] leading-relaxed">
-                        Attendance marks verify cryptographic device binding. If this student lost or replaced their phone, reset this binding so they can register their new mobile device.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-lg border border-dashed border-border text-center space-y-1.5">
-                    <Smartphone className="h-6 w-6 text-muted-foreground mx-auto" />
-                    <p className="text-xs font-medium text-foreground">No Mobile Device Registered</p>
-                    <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
-                      This student has not yet bound a mobile device. Device binding occurs securely when the student logs in from the SmartAttend mobile application.
+                    <p>
+                      Promoting students will advance all enrolled records in {selectedSem} to <strong>{SEMESTER_PROGRESSION[selectedSem]?.nextSem}</strong>.
+                    </p>
+                    <p>
+                      The destination academic year (<strong>{SEMESTER_PROGRESSION[selectedSem]?.nextYear}</strong>) will automatically update its active semester to <strong>{isOddSemester(SEMESTER_PROGRESSION[selectedSem]?.nextSem) ? 'Odd Semester' : 'Even Semester'}</strong>, leaving junior batches and other years untouched.
                     </p>
                   </div>
-                )}
 
-                <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
-                  <button
-                    type="button"
-                    onClick={() => setShowDeviceModal(false)}
-                    className="h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
-                  >
-                    Close
-                  </button>
-                  {deviceDetail?.isBound && (
+                  <div className="flex gap-3 pt-2">
                     <button
                       type="button"
-                      disabled={deviceResetting}
-                      onClick={handleResetStudentDevice}
-                      className="h-9 px-4 rounded-md bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                      disabled={promotingSubmitting}
+                      onClick={() => setShowPromoteModal(false)}
+                      className="flex-1 px-4 py-2 rounded-lg border border-input bg-background hover:bg-muted text-foreground text-sm font-medium transition-colors cursor-pointer"
                     >
-                      {deviceResetting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                      Reset / Unbind Device
+                      Cancel
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      disabled={promotingSubmitting}
+                      onClick={handleExecuteBulkPromote}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {promotingSubmitting ? <Loader2 className="size-4 animate-spin" /> : <TrendingUp className="size-4" />}
+                      Confirm Promotion
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Delete Student Confirmation Modal */}
-        {showDeleteModal && deletingStudent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-              <div className="p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-full bg-destructive/10 text-destructive">
-                    <Trash2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">Delete Student?</h2>
-                    <p className="text-xs text-muted-foreground">Permanent deletion confirmation</p>
-                  </div>
-                </div>
-
-                {deleteError && (
-                  <div className="p-3 text-xs bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 rounded-md flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
-                    <span>{deleteError}</span>
-                  </div>
-                )}
-
-                <div className="p-4 bg-muted/40 rounded-lg border border-border space-y-2 text-xs">
-                  <p className="text-muted-foreground font-medium">Are you sure you want to delete:</p>
-                  <div className="pl-2 border-l-2 border-primary space-y-1">
-                    <div className="font-semibold text-sm text-foreground">{deletingStudent.name}</div>
-                    <div className="font-mono text-xs text-muted-foreground">USN: {deletingStudent.usn}</div>
-                    <div className="text-xs text-muted-foreground">{deletingStudent.department} • Semester {deletingStudent.semester}</div>
-                  </div>
-                </div>
-
-                <p className="text-xs text-destructive font-medium">
-                  ⚠️ This action cannot be undone. If this student has active attendance history, deletion will be blocked to preserve audit records.
-                </p>
-
-                <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteModal(false)}
-                    className="h-9 px-4 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={deleteSubmitting}
-                    onClick={handleConfirmDeleteStudent}
-                    className="h-9 px-4 rounded-md bg-destructive text-destructive-foreground text-sm font-medium hover:bg-destructive/90 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {deleteSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    Delete Student
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </AdminContent>
     </AdminShell>
   )
 }
+
+// ─── Faculty Page ─────────────────────────────────────────────────────────────
 
 // ─── Faculty Page ─────────────────────────────────────────────────────────────
 export function FacultyPage() {

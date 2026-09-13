@@ -3,14 +3,14 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'SmartAttend Admin Console',
-  description: 'Manage attendance, academics, timetables, and people across your institution.',
-  generator: 'SmartAttend',
+  title: 'Automark Admin Portal',
+  description: 'Automark institutional administration portal for attendance, academics, timetables, and student management.',
+  generator: 'Automark',
 }
 
 export const viewport: Viewport = {
   colorScheme: 'light',
-  themeColor: '#0B1F3A',
+  themeColor: '#0D59D6',
   width: 'device-width',
   initialScale: 1,
 }

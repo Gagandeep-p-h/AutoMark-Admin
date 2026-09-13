@@ -12,7 +12,7 @@ export default async function AdminNotFound({ params }: { params: Promise<{ slug
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground capitalize">{title}</h1>
-            <p className="text-sm text-muted-foreground mt-1">The requested SmartAttend workspace could not be found.</p>
+            <p className="text-sm text-muted-foreground mt-1">The requested Automark workspace could not be found.</p>
           </div>
           <Link href="/admin/dashboard" className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm">
             Back to Dashboard

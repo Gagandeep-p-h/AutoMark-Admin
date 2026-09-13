@@ -28,7 +28,17 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (res.ok && data.success) {
-        router.push(data.redirect)
+        if (data.dept) {
+          try {
+            localStorage.setItem('smartattend_admin_dept', data.dept)
+          } catch {}
+        }
+        if (data.user) {
+          try {
+            localStorage.setItem('smartattend_admin_user', JSON.stringify(data.user))
+          } catch {}
+        }
+        router.push(data.redirect || '/admin/students')
         router.refresh()
       } else {
         setError(data.error || 'Login failed')
@@ -43,34 +53,37 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-8">
       {/* Brand Header */}
-      <div className="absolute top-8 left-8 flex items-center gap-2">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+      <div className="absolute top-8 left-8 flex items-center gap-2.5">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs">
           <Shield className="size-4" />
         </div>
-        <p className="text-lg font-bold text-primary">
-          Smart<span className="text-muted-foreground font-normal">Attend</span>
-        </p>
+        <div className="flex flex-col">
+          <p className="text-base font-bold text-foreground leading-tight">
+            Automark
+          </p>
+          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Admin Portal</span>
+        </div>
       </div>
 
       {/* Login Card */}
       <div className="w-full max-w-[400px] rounded-xl bg-card p-8 border border-border shadow-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Welcome back</h1>
-          <p className="text-sm text-muted-foreground mt-2">Enter your credentials to access your account</p>
+          <p className="text-sm text-muted-foreground mt-2">Enter department admin credentials (e.g. admin@cse, admin@ec)</p>
         </div>
 
         <form onSubmit={login} className="space-y-5">
           <div className="space-y-2">
-            <Label required>Email</Label>
+            <Label required>Department Admin Username / Email</Label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <UserRound className="h-4 w-4 text-muted-foreground" />
               </div>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="admin@smartattend.edu.in"
+                placeholder="admin@cse, admin@ec, admin@eee..."
                 className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pl-10"
                 required
               />
@@ -100,8 +113,8 @@ export default function LoginPage() {
                 className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pl-10 pr-10"
                 required
               />
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShow(!show)}
                 className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
               >
@@ -126,7 +139,7 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
-      
+
       {/* Footer info */}
       <p className="mt-8 text-xs text-muted-foreground text-center">
         By signing in, you agree to our Terms of Service and Privacy Policy.

@@ -1,64 +1,78 @@
-import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
+import { NextResponse } from 'next/server'
+import * as fs from 'fs'
+import * as path from 'path'
 
-const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000';
+const dataDir = path.join(process.cwd(), 'data')
+const dataFilePath = path.join(dataDir, 'students.json')
+const metaFilePath = path.join(dataDir, 'students_meta.json')
 
-export async function GET(req: Request) {
-  try {
-    const session = await getSession();
-    const url = new URL(req.url);
-
-    const headers: Record<string, string> = {
-      'Accept': 'application/json',
-    };
-
-    if (session?.backendToken) {
-      headers['Authorization'] = `Bearer ${session.backendToken}`;
-    }
-
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/students${url.search}`, {
-      method: 'GET',
-      headers,
-      signal: AbortSignal.timeout(4000),
-    });
-
-    const data = await backendRes.json();
-    return NextResponse.json(data, { status: backendRes.status });
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, message: 'Backend request failed' },
-      { status: 502 }
-    );
+function ensureDirectory() {
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true })
   }
+}
+
+function getStoredStudents() {
+  try {
+    if (fs.existsSync(dataFilePath)) {
+      const content = fs.readFileSync(dataFilePath, 'utf-8')
+      const parsed = JSON.parse(content)
+      if (Array.isArray(parsed)) return parsed
+    }
+  } catch (e) {
+    console.error('Failed to read data/students.json:', e)
+  }
+  return []
+}
+
+function getStoredMeta() {
+  try {
+    if (fs.existsSync(metaFilePath)) {
+      const content = fs.readFileSync(metaFilePath, 'utf-8')
+      return JSON.parse(content)
+    }
+  } catch (e) {
+    console.error('Failed to read data/students_meta.json:', e)
+  }
+  return { customSections: {}, customLabBatches: {} }
+}
+
+export async function GET() {
+  const students = getStoredStudents()
+  const meta = getStoredMeta()
+  return NextResponse.json({
+    success: true,
+    data: students,
+    meta
+  })
 }
 
 export async function POST(req: Request) {
   try {
-    const session = await getSession();
-    const body = await req.json();
+    ensureDirectory()
+    const body = await req.json()
+    const students = body.students
+    const customSections = body.customSections
+    const customLabBatches = body.customLabBatches
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-
-    if (session?.backendToken) {
-      headers['Authorization'] = `Bearer ${session.backendToken}`;
+    if (Array.isArray(students)) {
+      fs.writeFileSync(dataFilePath, JSON.stringify(students, null, 2), 'utf-8')
     }
 
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/students`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(4000),
-    });
+    if (customSections || customLabBatches) {
+      const meta = {
+        customSections: customSections || {},
+        customLabBatches: customLabBatches || {}
+      }
+      fs.writeFileSync(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8')
+    }
 
-    const data = await backendRes.json();
-    return NextResponse.json(data, { status: backendRes.status });
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, message: 'Failed to create student' },
-      { status: 502 }
-    );
+    return NextResponse.json({
+      success: true,
+      count: Array.isArray(students) ? students.length : 0
+    })
+  } catch (e: any) {
+    console.error('Failed to save students:', e)
+    return NextResponse.json({ success: false, error: e.message }, { status: 500 })
   }
 }
