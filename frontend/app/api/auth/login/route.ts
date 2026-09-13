@@ -153,14 +153,8 @@ export async function POST(req: Request) {
 
     if (!userMatch) {
       return NextResponse.json(
-        { error: result.message || 'Invalid username/email or password' },
-        { status: backendRes.status || 401 }
-      )
-    } catch (backendErr) {
-      console.error('Backend authentication unreachable:', backendErr)
-      return NextResponse.json(
-        { error: 'Authentication service unavailable. Please check backend server.' },
-        { status: 503 }
+        { error: 'Invalid username/email or password' },
+        { status: 401 }
       )
     }
 

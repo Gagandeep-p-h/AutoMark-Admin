@@ -10,14 +10,17 @@
       "CSE 4A"
     ],
     "1st Year_1st Sem": [
-      "CSE 1A",
-      "CSE 1B"
+      "CSE 1A"
+    ],
+    "1st Year_2nd Sem": [
+      "CSE 1A"
     ]
   },
   "customLabBatches": {
     "A": [
       "A1",
-      "A2"
+      "A2",
+      "A3"
     ],
     "B": [
       "B1"

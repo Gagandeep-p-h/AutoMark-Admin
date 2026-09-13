@@ -16,6 +16,10 @@
       "model": "AttendanceSession",
       "namespace": "public"
     },
+    "auditLog": {
+      "model": "AuditLog",
+      "namespace": "public"
+    },
     "class": {
       "model": "Class",
       "namespace": "public"
@@ -157,8 +161,16 @@
             "codecId": "pg/text@1",
             "members": [
               {
+                "name": "SUPER_ADMIN",
+                "value": "SUPER_ADMIN"
+              },
+              {
                 "name": "ADMIN",
                 "value": "ADMIN"
+              },
+              {
+                "name": "HOD",
+                "value": "HOD"
               },
               {
                 "name": "FACULTY",
@@ -550,6 +562,123 @@
               },
               "namespaceId": "public",
               "table": "attendanceSession"
+            }
+          },
+          "AuditLog": {
+            "fields": {
+              "action": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              },
+              "departmentId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "details": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "entityId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "entityType": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "ipAddress": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "userId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "user": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "userId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "User",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "action": {
+                  "column": "action"
+                },
+                "createdAt": {
+                  "column": "createdAt"
+                },
+                "departmentId": {
+                  "column": "departmentId"
+                },
+                "details": {
+                  "column": "details"
+                },
+                "entityId": {
+                  "column": "entityId"
+                },
+                "entityType": {
+                  "column": "entityType"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "ipAddress": {
+                  "column": "ipAddress"
+                },
+                "userId": {
+                  "column": "userId"
+                }
+              },
+              "namespaceId": "public",
+              "table": "auditLog"
             }
           },
           "Class": {
@@ -2072,6 +2201,13 @@
                   "kind": "scalar"
                 }
               },
+              "departmentId": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
               "email": {
                 "nullable": false,
                 "type": {
@@ -2129,6 +2265,21 @@
               }
             },
             "relations": {
+              "auditLogs": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "userId"
+                  ]
+                },
+                "to": {
+                  "model": "AuditLog",
+                  "namespace": "public"
+                }
+              },
               "faculty": {
                 "cardinality": "1:1",
                 "on": {
@@ -2179,6 +2330,9 @@
               "fields": {
                 "createdAt": {
                   "column": "createdAt"
+                },
+                "departmentId": {
+                  "column": "departmentId"
                 },
                 "email": {
                   "column": "email"
@@ -2538,6 +2692,97 @@
                   ],
                   "name": "attendanceSession_classId_idx_0089e5e7",
                   "prefix": "attendanceSession_classId_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
+            "auditLog": {
+              "columns": {
+                "action": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "createdAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
+                "departmentId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": true
+                },
+                "details": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "entityId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": true
+                },
+                "entityType": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/int4@1",
+                  "default": {
+                    "expression": "autoincrement()",
+                    "kind": "function"
+                  },
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "ipAddress": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
+                "userId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "source": {
+                    "columns": [
+                      "userId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "auditLog"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "user"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "userId"
+                  ],
+                  "name": "auditLog_userId_idx_a489d58a",
+                  "prefix": "auditLog_userId_idx",
                   "unique": false
                 }
               ],
@@ -3722,8 +3967,8 @@
             "user": {
               "checks": [
                 {
-                  "expression": "\"role\" IN ('ADMIN', 'FACULTY', 'STUDENT')",
-                  "name": "user_role_check_868d0e90",
+                  "expression": "\"role\" IN ('SUPER_ADMIN', 'ADMIN', 'HOD', 'FACULTY', 'STUDENT')",
+                  "name": "user_role_check_f2e09f75",
                   "prefix": "user_role_check"
                 }
               ],
@@ -3736,6 +3981,11 @@
                   },
                   "nativeType": "timestamptz",
                   "nullable": false
+                },
+                "departmentId": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": true
                 },
                 "email": {
                   "codecId": "pg/text@1",
@@ -3842,7 +4092,9 @@
             "UserRole": {
               "kind": "valueSet",
               "values": [
+                "SUPER_ADMIN",
                 "ADMIN",
+                "HOD",
                 "FACULTY",
                 "STUDENT"
               ]
@@ -3853,7 +4105,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "d046391aea7eedba24a9e78451ec019679a5440967588d16d9b149a43c128097"
+    "storageHash": "6d2925b04c65934f685da4bc3182a4424f94933bc5292fa41be9092fc284701e"
   },
   "execution": {
     "executionHash": "8835ff5c1e3848be47e5a935b05036af6dc8d0af12df9b77e5c7c13cf21e0592",

@@ -79,6 +79,29 @@ export const resolveDepartment = (departments, identifier) => {
   );
 };
 
+const FACULTY_DEPARTMENT_NAMES = {
+  CSE: "Computer Science and Engineering",
+  AIML: "Artificial Intelligence and Machine Learning",
+  ECE: "Electronics and Communication",
+  EEE: "Electrical and Electronics Engineering",
+  MECH: "Mechanical Engineering",
+  CIVIL: "Civil Engineering",
+  "CSE-DS": "Computer Science and Engineering (Data Science)",
+};
+
+const ensureFacultyDepartment = async (departments, value) => {
+  const existing = resolveDepartment(departments, value);
+  if (existing) return existing;
+
+  const code = String(value || "").trim().toUpperCase();
+  if (!code) return null;
+
+  const name = FACULTY_DEPARTMENT_NAMES[code] || String(value).trim();
+  if (!name) return null;
+
+  return db.orm.public.Department.create({ name, code });
+};
+
 // Helper to check if a department matches HOD's department scope
 export const isDepartmentMatch = (dept, hodDepartmentId) => {
   if (!hodDepartmentId) return true;
@@ -1785,9 +1808,9 @@ export const createAdminFaculty = async (req, res) => {
         });
       }
     } else if (departmentId) {
-      selectedDept = resolveDepartment(departments, departmentId);
+      selectedDept = await ensureFacultyDepartment(departments, departmentId);
     } else if (department) {
-      selectedDept = resolveDepartment(departments, department);
+      selectedDept = await ensureFacultyDepartment(departments, department);
     }
 
     if (!selectedDept) {

@@ -23,7 +23,7 @@ export async function signToken(payload: SessionPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime(${SESSION_DURATION_SEC}s)
+    .setExpirationTime(`${SESSION_DURATION_SEC}s`)
     .setIssuer('smartattend')
     .sign(SECRET)
 }
