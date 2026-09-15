@@ -233,3 +233,269 @@ export const getFacultyTimetable = async (req, res) => {
     });
   }
 };
+
+// ─── updateFaculty ──────────────────────────────────────────────────────────
+export const updateFaculty = async (req, res) => {
+  try {
+    const id = Number(req.params.id || req.body.id);
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Faculty ID is required",
+      });
+    }
+
+    // Verify faculty exists
+    const allFaculty = await db.orm.public.Faculty.all();
+    const faculty = allFaculty.find((f) => f.id === id);
+
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: "Faculty not found",
+      });
+    }
+
+    const {
+      name,
+      email,
+      password,
+      employeeId,
+      departmentId,
+      designation,
+      isActive,
+    } = req.body;
+
+    // Check duplicate email (if changed)
+    if (email) {
+      const users = await db.orm.public.User.all();
+      const emailTaken = users.some(
+        (u) => u.email === email && u.id !== faculty.userId,
+      );
+
+      if (emailTaken) {
+        return res.status(409).json({
+          success: false,
+          message: "Email already in use by another user",
+        });
+      }
+    }
+
+    // Check duplicate employeeId (if changed)
+    if (employeeId) {
+      const faculties = await db.orm.public.Faculty.all();
+      const empIdTaken = faculties.some(
+        (f) => f.employeeId === employeeId && f.id !== id,
+      );
+
+      if (empIdTaken) {
+        return res.status(409).json({
+          success: false,
+          message: "Employee ID already in use by another faculty",
+        });
+      }
+    }
+
+    // Verify department exists (if changed)
+    if (departmentId) {
+      const departments = await db.orm.public.Department.all();
+      const dept = departments.find((d) => d.id === Number(departmentId));
+
+      if (!dept) {
+        return res.status(404).json({
+          success: false,
+          message: "Department not found",
+        });
+      }
+    }
+
+    // Build User update payload
+    const userUpdate = {};
+    if (name !== undefined) userUpdate.name = name;
+    if (email !== undefined) userUpdate.email = email;
+    if (isActive !== undefined) userUpdate.isActive = isActive;
+
+    if (password) {
+      userUpdate.passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    if (Object.keys(userUpdate).length > 0) {
+      await db.orm.public.User.where({ id: faculty.userId }).update(userUpdate);
+    }
+
+    // Build Faculty update payload
+    const facultyUpdate = {};
+    if (employeeId !== undefined) facultyUpdate.employeeId = employeeId;
+    if (departmentId !== undefined)
+      facultyUpdate.departmentId = Number(departmentId);
+    if (designation !== undefined) facultyUpdate.designation = designation;
+
+    if (Object.keys(facultyUpdate).length > 0) {
+      await db.orm.public.Faculty.where({ id }).update(facultyUpdate);
+    }
+
+    // Fetch the updated records to return
+    const updatedFaculty = (await db.orm.public.Faculty.all()).find(
+      (f) => f.id === id,
+    );
+    const updatedUser = (await db.orm.public.User.all()).find(
+      (u) => u.id === faculty.userId,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Faculty updated successfully",
+      data: {
+        user: updatedUser,
+        faculty: updatedFaculty,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating faculty:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update faculty",
+    });
+  }
+};
+export const updatefaculty = updateFaculty;
+
+// ─── deleteFaculty ──────────────────────────────────────────────────────────
+export const deleteFaculty = async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "Faculty ID is required",
+      });
+    }
+
+    // Verify faculty exists
+    const allFaculty = await db.orm.public.Faculty.all();
+    const faculty = allFaculty.find((f) => f.id === id);
+
+    if (!faculty) {
+      return res.status(404).json({
+        success: false,
+        message: "Faculty not found",
+      });
+    }
+
+    // Check if faculty has active classes assigned
+    const classes = await db.orm.public.Class.all();
+    const assignedClasses = classes.filter((c) => c.facultyId === id);
+
+    if (assignedClasses.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete faculty: ${assignedClasses.length} class(es) are still assigned. Reassign them first.`,
+      });
+    }
+
+    // Delete Faculty record
+    await db.orm.public.Faculty.where({ id }).delete();
+
+    // Delete associated User record
+    await db.orm.public.User.where({ id: faculty.userId }).delete();
+
+    res.status(200).json({
+      success: true,
+      message: "Faculty deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting faculty:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete faculty",
+    });
+  }
+};
+export const deletefaculty = deleteFaculty;
+
+// ─── exportFaculty ──────────────────────────────────────────────────────────
+export const exportFaculty = async (req, res) => {
+  try {
+    const allFaculty = await db.orm.public.Faculty.all();
+    const users = await db.orm.public.User.all();
+    const departments = await db.orm.public.Department.all();
+    const classes = await db.orm.public.Class.all();
+
+    const data = allFaculty.map((f) => {
+      const user = users.find((u) => u.id === f.userId);
+      const dept = departments.find((d) => d.id === f.departmentId);
+      const assignedClasses = classes.filter((c) => c.facultyId === f.id);
+
+      return {
+        id: f.id,
+        employeeId: f.employeeId,
+        name: user?.name ?? "",
+        email: user?.email ?? "",
+        departmentName: dept?.name ?? "",
+        departmentCode: dept?.code ?? "",
+        designation: f.designation ?? "",
+        isActive: user?.isActive ?? false,
+        assignedClassesCount: assignedClasses.length,
+        createdAt: f.createdAt ?? "",
+      };
+    });
+
+    // CSV export
+    if (req.query.format === "csv") {
+      const headers = [
+        "id",
+        "employeeId",
+        "name",
+        "email",
+        "departmentName",
+        "departmentCode",
+        "designation",
+        "isActive",
+        "assignedClassesCount",
+        "createdAt",
+      ];
+
+      const csvRows = [headers.join(",")];
+
+      for (const row of data) {
+        const values = headers.map((h) => {
+          const val = String(row[h] ?? "");
+          // Escape commas and quotes in CSV values
+          return val.includes(",") || val.includes('"')
+            ? `"${val.replace(/"/g, '""')}"`
+            : val;
+        });
+        csvRows.push(values.join(","));
+      }
+
+      const csvContent = csvRows.join("\n");
+
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader(
+        "Content-Disposition",
+        'attachment; filename="faculty_export.csv"',
+      );
+
+      return res.status(200).send(csvContent);
+    }
+
+    // JSON export (default)
+    res.status(200).json({
+      success: true,
+      data,
+      total: data.length,
+    });
+  } catch (error) {
+    console.error("Error exporting faculty:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to export faculty data",
+    });
+  }
+};
+export const exportfaculty = exportFaculty;
