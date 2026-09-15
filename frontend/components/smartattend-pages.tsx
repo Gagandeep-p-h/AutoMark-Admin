@@ -1214,7 +1214,7 @@ useEffect(() => {
 
       // Super Admin can access all departments
       if (user.role === 'SUPER_ADMIN') {
-        setAdminDept(null)
+        setAdminDept('')
         return
       }
 
