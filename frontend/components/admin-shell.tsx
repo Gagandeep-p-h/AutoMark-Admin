@@ -125,16 +125,18 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter()
 
   const [currentUser, setCurrentUser] = useState<{
-    name: string
-    email: string
-    role: string
-    dept?: string
-  }>({
-    name: 'Department Admin',
-    email: 'admin@cse',
-    role: 'DEPT_ADMIN',
-    dept: 'CSE',
-  })
+  name: string
+  email: string
+  role: string
+  dept?: string
+  departmentId?: number | null
+}>({
+  name: 'Admin',
+  email: 'admin@college.com',
+  role: 'SUPER_ADMIN',
+  dept: undefined,
+  departmentId: null,
+})
 
   const [backendStatus, setBackendStatus] = useState<'checking' | 'live' | 'offline'>('checking')
 
@@ -147,9 +149,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
         if (parsed?.name) setCurrentUser(parsed)
       }
       const storedDept = localStorage.getItem('smartattend_admin_dept')
-      if (storedDept) {
-        setCurrentUser(prev => ({ ...prev, dept: storedDept }))
-      }
+if (storedDept) {
+  setCurrentUser(prev =>
+    prev.role === 'SUPER_ADMIN'
+      ? prev
+      : { ...prev, dept: storedDept }
+  )
+}
     } catch {}
 
     fetch('/api/auth/session')
@@ -158,12 +164,15 @@ export function AdminShell({ children }: { children: ReactNode }) {
         if (!mounted) return
         if (data?.authenticated && data?.user) {
           setCurrentUser(data.user)
-          try {
-            localStorage.setItem('smartattend_admin_user', JSON.stringify(data.user))
-            if (data.user.dept) {
-              localStorage.setItem('smartattend_admin_dept', data.user.dept)
-            }
-          } catch {}
+try {
+  localStorage.setItem('smartattend_admin_user', JSON.stringify(data.user))
+
+  if (data.user.role === 'SUPER_ADMIN') {
+    localStorage.removeItem('smartattend_admin_dept')
+  } else if (data.user.dept) {
+    localStorage.setItem('smartattend_admin_dept', data.user.dept)
+  }
+} catch {}
         }
       })
       .catch(() => {})
@@ -273,7 +282,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         {/* Top Header */}
         <header className="h-14 border-b border-border bg-card flex items-center justify-between px-6 shrink-0 z-10 sticky top-0">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Automark Admin Portal</span>
+            <span className="font-medium text-foreground">AutoMark Admin Portal</span>
             <span>/</span>
             <span className="text-primary font-medium capitalize">
               {pathname.split('/').pop() || 'Dashboard'}
@@ -299,7 +308,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
             )}
 
             <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-              {currentUser.dept || 'CSE'} Department
+              {currentUser.role === 'SUPER_ADMIN'
+  ? 'All Departments'
+  : `${currentUser.dept || 'CSE'} Department`}
             </span>
           </div>
         </header>

@@ -1,78 +1,109 @@
 ﻿import { NextResponse } from 'next/server'
-import * as fs from 'fs'
-import * as path from 'path'
+import { getBackendToken, getSession } from '@/lib/auth'
 
-const dataDir = path.join(process.cwd(), 'data')
-const dataFilePath = path.join(dataDir, 'students.json')
-const metaFilePath = path.join(dataDir, 'students_meta.json')
+const BACKEND_INTERNAL_URL =
+  process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000'
 
-function ensureDirectory() {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true })
-  }
-}
-
-function getStoredStudents() {
+export async function GET(req: Request) {
   try {
-    if (fs.existsSync(dataFilePath)) {
-      const content = fs.readFileSync(dataFilePath, 'utf-8')
-      const parsed = JSON.parse(content)
-      if (Array.isArray(parsed)) return parsed
-    }
-  } catch (e) {
-    console.error('Failed to read data/students.json:', e)
-  }
-  return []
-}
+    const session = await getSession()
 
-function getStoredMeta() {
-  try {
-    if (fs.existsSync(metaFilePath)) {
-      const content = fs.readFileSync(metaFilePath, 'utf-8')
-      return JSON.parse(content)
+    if (!session) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      )
     }
-  } catch (e) {
-    console.error('Failed to read data/students_meta.json:', e)
-  }
-  return { customSections: {}, customLabBatches: {} }
-}
 
-export async function GET() {
-  const students = getStoredStudents()
-  const meta = getStoredMeta()
-  return NextResponse.json({
-    success: true,
-    data: students,
-    meta
-  })
+    const token = await getBackendToken(session)
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, message: 'Backend authentication token missing' },
+        { status: 401 }
+      )
+    }
+
+    const { searchParams } = new URL(req.url)
+    const query = searchParams.toString()
+
+    const backendUrl =
+      `${BACKEND_INTERNAL_URL}/api/admin/students` +
+      (query ? `?${query}` : '')
+
+    const response = await fetch(backendUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    })
+
+    const data = await response.json()
+
+    return NextResponse.json(data, { status: response.status })
+  } catch (error) {
+    console.error('Admin students GET proxy error:', error)
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Failed to connect to backend',
+      },
+      { status: 500 }
+    )
+  }
 }
 
 export async function POST(req: Request) {
   try {
-    ensureDirectory()
+    const session = await getSession()
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const token = await getBackendToken(session)
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, message: 'Backend authentication token missing' },
+        { status: 401 }
+      )
+    }
+
     const body = await req.json()
-    const students = body.students
-    const customSections = body.customSections
-    const customLabBatches = body.customLabBatches
 
-    if (Array.isArray(students)) {
-      fs.writeFileSync(dataFilePath, JSON.stringify(students, null, 2), 'utf-8')
-    }
-
-    if (customSections || customLabBatches) {
-      const meta = {
-        customSections: customSections || {},
-        customLabBatches: customLabBatches || {}
+    const response = await fetch(
+      `${BACKEND_INTERNAL_URL}/api/admin/students`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        cache: 'no-store',
       }
-      fs.writeFileSync(metaFilePath, JSON.stringify(meta, null, 2), 'utf-8')
-    }
+    )
 
-    return NextResponse.json({
-      success: true,
-      count: Array.isArray(students) ? students.length : 0
-    })
-  } catch (e: any) {
-    console.error('Failed to save students:', e)
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 })
+    const data = await response.json()
+
+    return NextResponse.json(data, { status: response.status })
+  } catch (error) {
+    console.error('Admin students POST proxy error:', error)
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Failed to connect to backend',
+      },
+      { status: 500 }
+    )
   }
 }

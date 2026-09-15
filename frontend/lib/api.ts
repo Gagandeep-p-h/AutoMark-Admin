@@ -207,29 +207,39 @@ export async function createStudent(payload: CreateStudentPayload, token?: strin
  */
 export async function getDepartments(): Promise<DepartmentRecord[]> {
   try {
-    const res = await fetch(`${getApiBase()}/departments`, {
+    const endpoint =
+      typeof window !== 'undefined'
+        ? '/api/admin/departments'
+        : `${getApiBase()}/departments`
+
+    const res = await fetch(endpoint, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
       signal: AbortSignal.timeout(4000),
-    });
+    })
 
     if (res.ok) {
-      const json = await res.json();
+      const json = await res.json()
+
       if (json.success && Array.isArray(json.data)) {
-        return json.data;
+        return json.data
       }
     }
+
     if (res.status === 401 || res.status === 403) {
-      const errJson = await res.json().catch(() => ({ message: 'Unauthorized' }));
-      throw new Error(errJson.message || 'Unauthorized access');
+      const errJson = await res.json().catch(() => ({
+        message: 'Unauthorized',
+      }))
+
+      throw new Error(errJson.message || 'Unauthorized access')
     }
   } catch (err: any) {
     if (err?.message?.includes('Unauthorized')) {
-      throw err;
+      throw err
     }
   }
 
-  return [];
+  return []
 }
 
 /**
@@ -656,7 +666,7 @@ export async function getStudentDeviceAdmin(
 export async function resetStudentDeviceAdmin(
   id: number | string
 ): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`/api/admin/students/${id}/device/reset`, {
+  const res = await fetch(`/api/admin/students/${id}/device`, {
     method: 'POST',
     headers: {
       'Accept': 'application/json',

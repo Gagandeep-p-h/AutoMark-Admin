@@ -53,20 +53,43 @@ interface Batch {
 interface TimetableSlot {
   id?: number | string
   classId?: number
-  dayOfWeek: string
+
+  dayOfWeek: string | number
   startTime: string
   endTime: string
+
   isLab: boolean
   isNA?: boolean
+
   subjectId?: number | null
   subjectCode?: string
   subjectName?: string
+
   facultyId?: number | null
   facultyName?: string
+
   batchId?: number | null
   batchName?: string | null
+
   room?: string
   overflowFreeBatch?: string | null
+
+  subject?: {
+    id: number
+    code: string
+    name: string
+  } | null
+
+  faculty?: {
+    id: number
+    employeeId?: string
+    designation?: string
+  } | null
+
+  semester?: number | null
+  section?: string | null
+  academicYear?: string | null
+  departmentId?: number | null
 }
 
 interface SlotCell {
@@ -130,18 +153,33 @@ const EMPTY_SLOT: SlotCell = {
 
 // Engineering Years (1st Year – 4th Year) mapped to semesters and academic sessions
 const ENGINEERING_YEARS: EngineeringYearOption[] = [
-  { yearNumber: 1, label: '1st Year', semesters: [1, 2], defaultSemester: 1, academicSession: '2025-2026' },
-  { yearNumber: 2, label: '2nd Year', semesters: [3, 4], defaultSemester: 3, academicSession: '2025-2026' },
-  { yearNumber: 3, label: '3rd Year', semesters: [5, 6], defaultSemester: 5, academicSession: '2025-2026' },
-  { yearNumber: 4, label: '4th Year', semesters: [7, 8], defaultSemester: 7, academicSession: '2025-2026' },
+  { yearNumber: 1, label: '1st Year', semesters: [1, 2], defaultSemester: 1, academicSession: '2026-27' },
+  { yearNumber: 2, label: '2nd Year', semesters: [3, 4], defaultSemester: 3, academicSession: '2026-27' },
+  { yearNumber: 3, label: '3rd Year', semesters: [5, 6], defaultSemester: 5, academicSession: '2026-27' },
+  { yearNumber: 4, label: '4th Year', semesters: [7, 8], defaultSemester: 7, academicSession: '2026-27' },
 ]
 
 const SECTIONS = ['A', 'B', 'C', 'D']
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
-function getSlotKey(day: string, startTime: string) {
-  return `${day}__${startTime}`
+function getSlotKey(day: string | number, startTime: string) {
+  const dayMap: Record<number, string> = {
+    1: 'MONDAY',
+    2: 'TUESDAY',
+    3: 'WEDNESDAY',
+    4: 'THURSDAY',
+    5: 'FRIDAY',
+    6: 'SATURDAY',
+    7: 'SUNDAY',
+  }
+
+  const normalizedDay =
+    typeof day === 'number'
+      ? dayMap[day]
+      : dayMap[Number(day)] || day.toUpperCase()
+
+  return `${normalizedDay}__${startTime}`
 }
 
 // ─── Sub-Components ───────────────────────────────────────────────────────────
@@ -1192,10 +1230,10 @@ function ImportModal({
 
 export default function TimetableManagementPage() {
   // Filters: UI represents 1st Year – 4th Year
-  const [engineeringYear, setEngineeringYear] = useState<number>(2) // Default 2nd Year (Sem 3)
-  const [departmentId, setDepartmentId] = useState('1')
-  const [semester, setSemester] = useState(3)
-  const [section, setSection] = useState('A')
+  const [engineeringYear, setEngineeringYear] = useState<number>(4) // Default 4th Year (Sem 7)
+const [departmentId, setDepartmentId] = useState('1')
+const [semester, setSemester] = useState(7)
+const [section, setSection] = useState('A')
 
   // Derive the active academic session from the engineering year config (for backend query compatibility)
   const activeYearConfig =
@@ -1238,35 +1276,55 @@ export default function TimetableManagementPage() {
 
   // Initial mount: load subjects, faculty, and batches for initial filter
   useEffect(() => {
-    let isMounted = true
-    async function fetchInitialData() {
-      try {
-        const res = await fetch(
-          `/api/admin/timetable?academicYear=${encodeURIComponent(
-            academicYear
-          )}&departmentId=${departmentId}&semester=${semester}&section=${section}`,
-          { credentials: 'include' }
-        )
-        const json = await res.json()
-        if (isMounted && json.success) {
-          const loadedSubjects = json.subjects || json.data?.subjects || []
-          const loadedFaculty = json.faculty || json.data?.faculty || []
-          const loadedBatches = json.batches || json.data?.batches || []
-          const loadedDepts = json.departments || json.data?.departments || []
-          setSubjects(loadedSubjects)
-          setFaculty(loadedFaculty)
-          setBatches(loadedBatches)
-          if (loadedDepts.length > 0) setDepartments(loadedDepts)
-        }
-      } catch {
-        // DB fallback defaults are already set in state
+  let isMounted = true
+
+  async function fetchInitialData() {
+    try {
+      const [subjectsRes, facultyRes] = await Promise.all([
+        fetch('/api/admin/subjects', {
+          credentials: 'include',
+        }),
+        fetch('/api/admin/faculty', {
+          credentials: 'include',
+        }),
+      ])
+
+      const subjectsJson = await subjectsRes.json()
+      const facultyJson = await facultyRes.json()
+
+      if (!isMounted) return
+
+      if (subjectsJson.success) {
+        const loadedSubjects = Array.isArray(subjectsJson.data)
+          ? subjectsJson.data
+          : subjectsJson.subjects || []
+
+        console.log('REAL SUBJECTS:', loadedSubjects)
+        setSubjects(loadedSubjects)
       }
+
+      if (facultyJson.success) {
+        const loadedFaculty = Array.isArray(facultyJson.data)
+          ? facultyJson.data
+          : facultyJson.faculty || []
+
+        console.log('REAL FACULTY:', loadedFaculty)
+        setFaculty(loadedFaculty)
+      }
+    } catch (error) {
+      console.error(
+        'Failed to load initial subjects/faculty:',
+        error
+      )
     }
-    fetchInitialData()
-    return () => {
-      isMounted = false
-    }
-  }, [academicYear, departmentId, semester, section])
+  }
+
+  fetchInitialData()
+
+  return () => {
+    isMounted = false
+  }
+}, [])
 
   // ── Load Timetable ──────────────────────────────────────────────────────────
 
@@ -1282,38 +1340,53 @@ export default function TimetableManagementPage() {
         { credentials: 'include' }
       )
       const json = await res.json()
+      console.log("TIMETABLE API RESPONSE:", json)
 
       if (json.success) {
-        const loadedSubjects = json.subjects || json.data?.subjects || []
-        const loadedFaculty = json.faculty || json.data?.faculty || []
-        const loadedBatches = json.batches || json.data?.batches || []
-        const loadedSlots = json.slots || json.data?.slots || []
-        const loadedDepts = json.departments || json.data?.departments || []
+  const loadedBatches =
+    json.batches || json.data?.batches || []
 
-        setSubjects(loadedSubjects)
-        setFaculty(loadedFaculty)
-        setBatches(loadedBatches)
-        setTimetableSlots(loadedSlots)
-        if (loadedDepts.length > 0) setDepartments(loadedDepts)
+  const loadedSlots = Array.isArray(json.data)
+  ? json.data
+  : json.slots || json.data?.slots || []
 
-        // Build slot map
-        const newGrid: Record<string, SlotCell> = {}
-        ;(loadedSlots as TimetableSlot[]).forEach((slot) => {
-          const key = getSlotKey(slot.dayOfWeek, slot.startTime)
-          newGrid[key] = {
-            subjectId: slot.subjectId ?? null,
-            facultyId: slot.facultyId ?? null,
-            isLab: Boolean(slot.isLab),
-            isNA: Boolean(slot.isNA),
-            batchId: slot.batchId ?? null,
-            room: slot.room || '',
-          }
-        })
+  const loadedDepts =
+    json.departments || json.data?.departments || []
 
-        setGrid(newGrid)
-        setLoaded(true)
-        showToast('success', `Timetable loaded: ${loadedSlots.length} slot(s) for ${activeYearConfig.label} (Sem ${semester}, Sec ${section}).`)
-      } else {
+  setBatches(loadedBatches)
+  setTimetableSlots(loadedSlots)
+
+  if (loadedDepts.length > 0) {
+    setDepartments(loadedDepts)
+  }
+
+  // Build slot map
+  const newGrid: Record<string, SlotCell> = {}
+
+  ;(loadedSlots as TimetableSlot[]).forEach((slot) => {
+    const key = getSlotKey(
+      slot.dayOfWeek,
+      slot.startTime
+    )
+
+    newGrid[key] = {
+      subjectId: slot.subjectId ?? null,
+      facultyId: slot.facultyId ?? null,
+      isLab: Boolean(slot.isLab),
+      isNA: Boolean(slot.isNA),
+      batchId: slot.batchId ?? null,
+      room: slot.room || '',
+    }
+  })
+
+  setGrid(newGrid)
+  setLoaded(true)
+
+  showToast(
+    'success',
+    `Timetable loaded: ${loadedSlots.length} slot(s) for ${activeYearConfig.label} (Sem ${semester}, Sec ${section}).`
+  )
+} else {
         showToast('error', json.message || 'Failed to load timetable.')
       }
     } catch {

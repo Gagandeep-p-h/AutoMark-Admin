@@ -46,7 +46,10 @@ import {
   deleteFacultyAdmin,
   downloadFacultyExport,
   FacultyRecord,
+  getDepartments,
+  resetStudentDeviceAdmin,
 } from '@/lib/api'
+import { createStudent } from '@/lib/api'
 
 export function compareUsn(a: string | undefined, b: string | undefined): number {
   if (!a && !b) return 0
@@ -116,6 +119,7 @@ export function DashboardPage() {
 
 // ─── Students Page ────────────────────────────────────────────────────────────
 interface Student {
+  id?: number
   name: string
   usn: string
   dept: string
@@ -161,30 +165,91 @@ export interface ImportPreviewData {
 }
 
 // Helper to match student department, handling aliases (e.g. EC/ECE, CV/CIVIL, ME/MECH, AIML/AI, DS/AIDS)
-export function isStudentInDept(studentDept?: string | null, targetDept?: string | null): boolean {
+// Helper to match student department, including full department names
+export function isStudentInDept(
+  studentDept?: string | null,
+  targetDept?: string | null
+): boolean {
   if (!studentDept || !targetDept) return false
-  const s = studentDept.trim().toUpperCase()
-  const t = targetDept.trim().toUpperCase()
-  if (s === t) return true
 
-  // CSE / CS
-  if ((s === 'CSE' || s === 'CS') && (t === 'CSE' || t === 'CS')) return true
-  // EC / ECE
-  if ((s === 'EC' || s === 'ECE') && (t === 'EC' || t === 'ECE')) return true
-  // EEE / EE
-  if ((s === 'EEE' || s === 'EE') && (t === 'EEE' || t === 'EE')) return true
-  // CV / CIVIL
-  if ((s === 'CV' || s === 'CIVIL') && (t === 'CV' || t === 'CIVIL')) return true
-  // ME / MECH / MECHANICAL
-  if ((s === 'ME' || s === 'MECH' || s === 'MECHANICAL') && (t === 'ME' || t === 'MECH' || t === 'MECHANICAL')) return true
-  // AIML / AI
-  if ((s === 'AIML' || s === 'AI') && (t === 'AIML' || t === 'AI')) return true
-  // DS / AIDS / DATA SCIENCE
-  if ((s === 'DS' || s === 'AIDS' || s === 'DATA SCIENCE') && (t === 'DS' || t === 'AIDS' || t === 'DATA SCIENCE')) return true
-  // ISE / IS
-  if ((s === 'ISE' || s === 'IS') && (t === 'ISE' || t === 'IS')) return true
+  const normalizeDept = (value: string): string => {
+    const d = value
+      .trim()
+      .toUpperCase()
+      .replace(/\s+DEPARTMENT\s*$/i, '')
+      .trim()
 
-  return false
+    if (
+      d === 'CSE' ||
+      d === 'CS' ||
+      d === 'COMPUTER SCIENCE AND ENGINEERING' ||
+      d === 'COMPUTER SCIENCE'
+    ) {
+      return 'CSE'
+    }
+
+    if (
+      d === 'ECE' ||
+      d === 'EC' ||
+      d === 'ELECTRONICS AND COMMUNICATION ENGINEERING'
+    ) {
+      return 'ECE'
+    }
+
+    if (
+      d === 'EEE' ||
+      d === 'EE' ||
+      d === 'ELECTRICAL AND ELECTRONICS ENGINEERING'
+    ) {
+      return 'EEE'
+    }
+
+    if (
+      d === 'CV' ||
+      d === 'CIVIL' ||
+      d === 'CIVIL ENGINEERING'
+    ) {
+      return 'CIVIL'
+    }
+
+    if (
+      d === 'ME' ||
+      d === 'MECH' ||
+      d === 'MECHANICAL' ||
+      d === 'MECHANICAL ENGINEERING'
+    ) {
+      return 'MECH'
+    }
+
+    if (
+      d === 'AIML' ||
+      d === 'AI' ||
+      d === 'ARTIFICIAL INTELLIGENCE AND MACHINE LEARNING'
+    ) {
+      return 'AIML'
+    }
+
+    if (
+      d === 'DS' ||
+      d === 'AIDS' ||
+      d === 'DATA SCIENCE' ||
+      d === 'ARTIFICIAL INTELLIGENCE AND DATA SCIENCE'
+    ) {
+      return 'DS'
+    }
+
+    if (
+      d === 'ISE' ||
+      d === 'IS' ||
+      d === 'INFORMATION SCIENCE AND ENGINEERING'
+    ) {
+      return 'ISE'
+    }
+
+    return d
+  }
+
+  return normalizeDept(studentDept) === normalizeDept(targetDept)
 }
 
 // Helper to extract standard branch code from department name (e.g. CSE -> CS, ECE -> EC)
@@ -623,7 +688,7 @@ export function formatSectionLab(section?: string | null, lab?: string | null): 
   return `${secLetter}/${labCode}`
 }
 
-export function StudentsPage({ adminDept: initialAdminDept = 'CSE' }: { adminDept?: string } = {}) {
+export function StudentsPage({ adminDept: initialAdminDept }: { adminDept?: string } = {}) {
   const [query, setQuery] = useState('')
   const [selectedYear, setSelectedYear] = useState<string | null>(null)
   const [selectedSem, setSelectedSem] = useState<string | null>(null)
@@ -669,119 +734,135 @@ export function StudentsPage({ adminDept: initialAdminDept = 'CSE' }: { adminDep
     }).catch(() => {})
   }
 
-  // Restore students and metadata on initial mount (from localStorage and/or server)
-  useEffect(() => {
-    let localFound = false
+  // Load students from the real SmartAttend backend
+useEffect(() => {
+  const loadStudents = async () => {
     try {
-      const stored = localStorage.getItem('smartattend_students_data')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setStudentsData(parsed)
-          localFound = true
-        }
+      const response = await fetch('/api/admin/students', {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+        cache: 'no-store',
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to load students: ${response.status}`)
       }
 
-      const storedSections = localStorage.getItem('smartattend_custom_sections')
-      if (storedSections) {
-        const parsedSec = JSON.parse(storedSections)
-        if (parsedSec && typeof parsedSec === 'object') {
-          setCustomSections(parsedSec)
-        }
+      const result = await response.json()
+
+      
+
+      if (!result.success || !Array.isArray(result.data)) {
+        throw new Error(result.message || 'Invalid student data')
       }
 
-      const storedBatches = localStorage.getItem('smartattend_custom_lab_batches')
-      if (storedBatches) {
-        const parsedBatches = JSON.parse(storedBatches)
-        if (parsedBatches && typeof parsedBatches === 'object') {
-          setCustomLabBatches(parsedBatches)
+      const loadedStudents: Student[] = result.data.map((s: any) => {
+        const semesterNumber = Number.parseInt(
+          String(s.semester ?? '').replace(/\D/g, ''),
+          10
+        )
+
+        let year = ''
+
+        if (semesterNumber >= 1 && semesterNumber <= 2) {
+          year = '1st Year'
+        } else if (semesterNumber >= 3 && semesterNumber <= 4) {
+          year = '2nd Year'
+        } else if (semesterNumber >= 5 && semesterNumber <= 6) {
+          year = '3rd Year'
+        } else if (semesterNumber >= 7 && semesterNumber <= 8) {
+          year = '4th Year'
         }
+
+        return {
+          id: s.id,
+          name: s.name ?? '',
+          usn: s.usn ?? '',
+          dept: s.department ?? '',
+          year,
+          semester: normalizeSemesterString(String(s.semester ?? '')),
+          section: s.section ?? '',
+          account: s.email ?? '',
+          device: s.boundDeviceName ?? '',
+          email: s.email ?? '',
+          password: null,
+          Lab: s.lab ?? s.Lab ?? '',
+          lab: s.lab ?? s.Lab ?? '',
+          deviceBound: Boolean(s.deviceBound),
+          boundDeviceName: s.boundDeviceName ?? null,
+        }
+      })
+
+      setStudentsData(loadedStudents)
+
+      // Keep a local cache for faster UI rendering, but backend remains
+      // the source of truth.
+      try {
+        localStorage.setItem(
+          'smartattend_students_data',
+          JSON.stringify(loadedStudents)
+        )
+      } catch {}
+
+      // Load metadata only if the backend provides it.
+      const loadedSections =
+        result.meta?.customSections &&
+        typeof result.meta.customSections === 'object'
+          ? result.meta.customSections
+          : {}
+
+      const loadedBatches =
+        result.meta?.customLabBatches &&
+        typeof result.meta.customLabBatches === 'object'
+          ? result.meta.customLabBatches
+          : {}
+
+      setCustomSections(loadedSections)
+      setCustomLabBatches(loadedBatches)
+
+      try {
+        localStorage.setItem(
+          'smartattend_custom_sections',
+          JSON.stringify(loadedSections)
+        )
+        localStorage.setItem(
+          'smartattend_custom_lab_batches',
+          JSON.stringify(loadedBatches)
+        )
+      } catch {}
+    } catch (error) {
+      console.error('Failed to load students from backend:', error)
+
+      // Do not overwrite backend data.
+      // If a cached copy exists, restore it only as a temporary fallback.
+      try {
+        const stored = localStorage.getItem('smartattend_students_data')
+
+        if (stored) {
+          const parsed = JSON.parse(stored)
+
+          if (Array.isArray(parsed)) {
+            setStudentsData(parsed)
+          }
+        }
+      } catch (cacheError) {
+        console.error('Failed to restore cached students:', cacheError)
       }
-    } catch (e) {
-      console.error('Failed to restore students from localStorage:', e)
+    } finally {
+      setIsStudentsLoaded(true)
     }
+  }
 
-    // Also synchronize with /api/admin/students
-    fetch('/api/admin/students')
-      .then(res => res.json())
-      .then(res => {
-        let loadedStudents: any[] = []
-        let loadedSections: Record<string, string[]> = {}
-        let loadedBatches: Record<string, string[]> = {}
-
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-          loadedStudents = res.data
-          setStudentsData(res.data)
-          try {
-            localStorage.setItem('smartattend_students_data', JSON.stringify(res.data))
-          } catch {}
-        }
-        if (res.meta?.customSections && Object.keys(res.meta.customSections).length > 0) {
-          loadedSections = res.meta.customSections
-        }
-        if (res.meta?.customLabBatches && Object.keys(res.meta.customLabBatches).length > 0) {
-          loadedBatches = res.meta.customLabBatches
-        }
-
-        // Prune stale empty sections/batches immediately after loading from server
-        const studentsForPrune = loadedStudents.length > 0 ? loadedStudents : []
-        const prunedSecs: Record<string, string[]> = {}
-        Object.entries(loadedSections).forEach(([key, secs]) => {
-          const [yr, sm] = key.split('_')
-          const active = (secs as string[]).filter((sec: string) => {
-            const letter = sec.replace(/.*?([A-Z])\s*$/, '$1').toUpperCase()
-            return studentsForPrune.some((s: any) => {
-              const sLetter = (s.section || '').replace(/.*?([A-Z])\s*$/, '$1').toUpperCase()
-              return s.year === yr && s.semester === sm && sLetter === letter
-            })
-          })
-          if (active.length > 0) prunedSecs[key] = active
-        })
-        const prunedBatches: Record<string, string[]> = {}
-        Object.entries(loadedBatches).forEach(([secLetter, batches]) => {
-          const active = (batches as string[]).filter((batch: string) => {
-            const batchNorm = batch.toUpperCase().replace(/^LAB\s*/i, '').trim()
-            return studentsForPrune.some((s: any) => {
-              const sLetter = (s.section || '').replace(/.*?([A-Z])\s*$/, '$1').toUpperCase()
-              if (sLetter !== secLetter) return false
-              const sLab = (s.Lab || s.lab || '').toUpperCase().replace(/^LAB\s*/i, '').trim()
-              return sLab === batchNorm
-            })
-          })
-          if (active.length > 0) prunedBatches[secLetter] = active
-        })
-
-        setCustomSections(prunedSecs)
-        setCustomLabBatches(prunedBatches)
-        try {
-          localStorage.setItem('smartattend_custom_sections', JSON.stringify(prunedSecs))
-          localStorage.setItem('smartattend_custom_lab_batches', JSON.stringify(prunedBatches))
-        } catch {}
-
-        // Also persist pruned meta to server
-        if (studentsForPrune.length > 0) {
-          fetch('/api/admin/students', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              students: studentsForPrune,
-              customSections: prunedSecs,
-              customLabBatches: prunedBatches
-            })
-          }).catch(() => {})
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        setIsStudentsLoaded(true)
-      })
-  }, [])
+  loadStudents()
+}, [])
 
   // Auto-sync students_data changes to storage after initial load
-  useEffect(() => {
-    if (!isStudentsLoaded) return
-    persistStudents(students_data, customSections, customLabBatches)
-  }, [students_data, isStudentsLoaded])
+  // useEffect(() => {
+  //   if (!isStudentsLoaded) return
+  //   persistStudents(students_data, customSections, customLabBatches)
+  // }, [students_data, isStudentsLoaded])
 
   // Per-Year Semester Cycle State ('ODD' | 'EVEN' per year), persisted across reloads in localStorage
   const [semCycleByYear, setSemCycleByYear] = useState<Record<string, 'ODD' | 'EVEN'>>({
@@ -949,34 +1030,66 @@ export function StudentsPage({ adminDept: initialAdminDept = 'CSE' }: { adminDep
     setShowDeviceModal(true)
   }
 
-  const handleResetStudentDevice = () => {
-    if (!deviceStudent) return
-    setDeviceResetting(true)
-    setDeviceMessage(null)
-
-    setTimeout(() => {
-      setStudentsData(prev => prev.map(s => {
-        if (s.usn === deviceStudent.usn) {
-          return {
-            ...s,
-            device: 'Not Linked'
-          }
-        }
-        return s
-      }))
-      setDeviceStudent(prev => prev ? { ...prev, device: 'Not Linked' } : null)
-      setDeviceResetting(false)
-      setDeviceMessage({
-        type: 'success',
-        text: 'Device binding reset successfully. Student can now register a new device.'
-      })
-      setToastMessage({
-        type: 'success',
-        text: `Device binding for ${deviceStudent.name} (${deviceStudent.usn}) reset.`
-      })
-      setTimeout(() => setToastMessage(null), 5000)
-    }, 400)
+  const handleResetStudentDevice = async () => {
+  if (!deviceStudent?.id) {
+    setDeviceMessage({
+      type: 'error',
+      text: 'Invalid student ID',
+    })
+    return
   }
+
+  setDeviceResetting(true)
+  setDeviceMessage(null)
+
+  try {
+    const result = await resetStudentDeviceAdmin(deviceStudent.id)
+
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to reset device binding')
+    }
+
+    // Update the student in the table immediately
+    setStudentsData(prev =>
+      prev.map(s =>
+        s.usn === deviceStudent.usn
+          ? {
+              ...s,
+              deviceBound: false,
+              device: 'Not Linked',
+            }
+          : s
+      )
+    )
+
+    // Update the currently open modal
+    setDeviceStudent(prev =>
+      prev
+        ? {
+            ...prev,
+            deviceBound: false,
+            device: 'Not Linked',
+          }
+        : prev
+    )
+
+    setDeviceMessage({
+      type: 'success',
+      text: result.message || 'Device binding reset successfully.',
+    })
+  } catch (error) {
+    console.error('Admin device reset error:', error)
+
+    setDeviceMessage({
+      type: 'error',
+      text: error instanceof Error
+        ? error.message
+        : 'Failed to reset device binding.',
+    })
+  } finally {
+    setDeviceResetting(false)
+  }
+}
 
   const handleOpenDeleteModal = (student: Student) => {
     setDeletingStudent(student)
@@ -1089,27 +1202,29 @@ export function StudentsPage({ adminDept: initialAdminDept = 'CSE' }: { adminDep
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   // Dynamic admin department from authenticated session
-  const [adminDept, setAdminDept] = useState<string>(initialAdminDept)
+  const [adminDept, setAdminDept] = useState<string>(initialAdminDept || 'CSE')
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('smartattend_admin_dept')
-      if (stored) setAdminDept(stored.toUpperCase())
-    } catch {}
+useEffect(() => {
+  fetch('/api/auth/session')
+    .then(res => res.json())
+    .then(data => {
+      if (!data?.authenticated || !data?.user) return
 
-    fetch('/api/auth/session')
-      .then(res => res.json())
-      .then(data => {
-        if (data?.authenticated && data?.user?.dept) {
-          const dept = data.user.dept.toUpperCase()
-          setAdminDept(dept)
-          try {
-            localStorage.setItem('smartattend_admin_dept', dept)
-          } catch {}
-        }
-      })
-      .catch(() => {})
-  }, [])
+      const user = data.user
+
+      // Super Admin can access all departments
+      if (user.role === 'SUPER_ADMIN') {
+        setAdminDept(null)
+        return
+      }
+
+      // Department Admin/HOD is restricted to their department
+      if (user.dept) {
+        setAdminDept(user.dept.toUpperCase())
+      }
+    })
+    .catch(() => {})
+}, [])
 
   // Helper to safely extract value from either string or ChangeEvent
   const updateFormField = (field: string, valOrEvent: any) => {
@@ -1523,7 +1638,7 @@ export function StudentsPage({ adminDept: initialAdminDept = 'CSE' }: { adminDep
   }
 
   // Add Student
-  const handleAddStudent = () => {
+  const handleAddStudent = async () => {
     const targetYear = formData.year || selectedYear || ''
     const targetSem = formData.semester || selectedSem || ''
     const targetSection = (formData.section || (selectedSection !== 'ALL' ? selectedSection : sectionsForCurrentSem[0]) || `${adminDept} ${targetYear.match(/\d/)?.[0] || '1'}A`).trim()
@@ -1576,6 +1691,37 @@ export function StudentsPage({ adminDept: initialAdminDept = 'CSE' }: { adminDep
     }
 
     setStudentsData(prev => [...prev, newStudent])
+
+    try {
+  const semesterNumber = parseInt(targetSem.match(/\d+/)?.[0] || '', 10)
+
+  if (!Number.isFinite(semesterNumber)) {
+    setFormErrors({ semester: 'Invalid semester value' })
+    return
+  }
+
+  await createStudent({
+    name: formData.name.trim(),
+    email: formData.email.trim() || defaultEmail,
+    registerNumber: cleanUsn,
+    department: adminDept,
+    semester: semesterNumber,
+    section: secLetter,
+    academicYear: targetYear,
+  })
+
+} catch (error) {
+  console.error('Failed to create student:', error)
+
+  setFormErrors({
+    usn: error instanceof Error
+      ? error.message
+      : 'Failed to create student'
+  })
+
+  return
+}
+
     setLastAddedStudent(newStudent)
     setShowAddModal(false)
     setShowSuccessModal(true)
@@ -2290,7 +2436,7 @@ export function StudentsPage({ adminDept: initialAdminDept = 'CSE' }: { adminDep
                         const semNum = s.semester?.replace(/[^0-9]/g, '') || s.semester || '1'
                         const secCode = s.section?.replace(/^.*?(\d?[A-Z])$/, '$1') || s.section
                         const labCode = s.Lab || s.lab || `${secCode.slice(-1)}1` || 'A1'
-                        const isDeviceRegistered = s.device === 'Linked' || s.device === 'Registered'
+                        const isDeviceRegistered = s.deviceBound === true
 
                         return (
                           <tr key={s.usn || i} className="hover:bg-muted/50 transition-colors">
@@ -3147,11 +3293,11 @@ export function StudentsPage({ adminDept: initialAdminDept = 'CSE' }: { adminDep
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Current Binding Status:</span>
-                      <StatusBadge status={deviceStudent.device === 'Linked' || deviceStudent.device === 'Registered' ? 'Registered' : 'Not Registered'} />
+                      <StatusBadge status={deviceStudent.deviceBound === true ? 'Registered' : 'Not Registered'} />
                     </div>
                   </div>
 
-                  {(deviceStudent.device === 'Linked' || deviceStudent.device === 'Registered') ? (
+                  {deviceStudent.deviceBound === true ? (
                     <div className="space-y-3">
                       <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">Registered Device Credentials</h3>
                       <div className="p-3 rounded-lg border border-border bg-background space-y-1.5 text-xs">
@@ -3195,7 +3341,7 @@ export function StudentsPage({ adminDept: initialAdminDept = 'CSE' }: { adminDep
                     >
                       Close
                     </button>
-                    {(deviceStudent.device === 'Linked' || deviceStudent.device === 'Registered') && (
+                    {deviceStudent.deviceBound === true && (
                       <button
                         type="button"
                         disabled={deviceResetting}
@@ -3737,12 +3883,14 @@ export function FacultyPage() {
   // Add Faculty modal
   const [showAddModal, setShowAddModal] = useState(false)
   const [addForm, setAddForm] = useState({
-    name: '',
-    employeeId: '',
-    department: 'CSE',
-    designation: 'Assistant Professor',
-    email: '',
-  })
+  name: '',
+  employeeId: '',
+  department: 'CSE',
+  designation: 'Assistant Professor',
+  email: '',
+  password: '',
+})
+
   const [addLoading, setAddLoading] = useState(false)
   const [addError, setAddError] = useState('')
 
@@ -3792,16 +3940,23 @@ export function FacultyPage() {
     { code: 'CSE-DS', name: 'Computer Science and Engineering (Data Science)' },
   ]
 
+  // const DESIGNATION_OPTIONS = [
+  //   'Assistant Professor',
+  //   'Associate Professor',
+  //   'Professor',
+  //   'Professor & HOD',
+  //   'Dean',
+  //   'Dean Academic',
+  //   'Dean Student Affairs',
+  //   'Dean R&D',
+  // ]
+
   const DESIGNATION_OPTIONS = [
-    'Assistant Professor',
-    'Associate Professor',
-    'Professor',
-    'Professor & HOD',
-    'Dean',
-    'Dean Academic',
-    'Dean Student Affairs',
-    'Dean R&D',
-  ]
+  'Assistant Professor',
+  'Associate Professor',
+  'Professor',
+  'HOD',
+]
 
   const fetchFacultyList = async () => {
     setLoading(true)
@@ -3878,40 +4033,112 @@ export function FacultyPage() {
     }
 
     try {
-      setAddLoading(true)
-      const res = await createFacultyAdmin({
-        name: addForm.name.trim(),
-        employeeId: addForm.employeeId.trim(),
-        department: hodDepartment || addForm.department,
-        designation: addForm.designation.trim(),
-        email: addForm.email.trim() || undefined,
-      })
-      setShowAddModal(false)
+  setAddLoading(true)
 
-      const tempPwd = res?.faculty?.temporaryPassword || res?.data?.temporaryPassword
-      if (tempPwd) {
-        setCreatedCredential({
-          name: addForm.name.trim(),
-          employeeId: addForm.employeeId.trim(),
-          email: addForm.email.trim(),
-          temporaryPassword: tempPwd,
-        })
-      }
+  // Get the real departments from PostgreSQL
+  const departments = await getDepartments()
 
-      setAddForm({
-        name: '',
-        employeeId: '',
-        department: hodDepartment || 'CSE',
-        designation: 'Assistant Professor',
-        email: '',
-      })
-      setFacultyToast({ type: 'success', text: `Faculty member "${addForm.name.trim()}" added successfully.` })
-      await fetchFacultyList()
-    } catch (err: any) {
-      setAddError(err.message || 'Failed to add faculty member.')
-    } finally {
-      setAddLoading(false)
-    }
+  // The form stores department code such as "CSE"
+  // HOD users remain restricted to their own department.
+  const selectedDepartmentCode = (
+    hodDepartment || addForm.department
+  )
+    .split(' - ')[0]
+    .trim()
+    .toUpperCase()
+
+  const selectedDepartment = departments.find(
+    (dept) => dept.code.toUpperCase() === selectedDepartmentCode
+  )
+
+  if (!selectedDepartment) {
+    throw new Error(
+      `Department "${selectedDepartmentCode}" was not found in the database.`
+    )
+  }
+
+  // Convert UI designation to the actual PostgreSQL enum
+  const designationMap: Record<string, string> = {
+    'Assistant Professor': 'ASSISTANT_PROFESSOR',
+    'Associate Professor': 'ASSOCIATE_PROFESSOR',
+    'Professor': 'PROFESSOR',
+    'HOD': 'HOD',
+  }
+
+  const backendDesignation =
+    designationMap[addForm.designation.trim()]
+
+  if (!backendDesignation) {
+    throw new Error('Please select a valid faculty designation.')
+  }
+
+  const employeeId = addForm.employeeId.trim()
+
+  if (!employeeId) {
+    throw new Error('Employee ID is required.')
+  }
+
+  if (!addForm.password.trim()) {
+    throw new Error('Password is required.')
+  }
+
+  // If email is omitted, create the default faculty email.
+  const email =
+    addForm.email.trim() ||
+    `${employeeId.toLowerCase()}@klsvdit.edu.in`
+
+  const res = await createFacultyAdmin({
+    name: addForm.name.trim(),
+    employeeId,
+    departmentId: selectedDepartment.id,
+    department: selectedDepartment.code,
+    designation: backendDesignation,
+    email,
+    password: addForm.password,
+  })
+
+  setShowAddModal(false)
+
+  const tempPwd =
+    res?.faculty?.temporaryPassword ||
+    res?.data?.temporaryPassword ||
+    addForm.password
+
+  if (tempPwd) {
+    setCreatedCredential({
+      name: addForm.name.trim(),
+      employeeId,
+      email,
+      temporaryPassword: tempPwd,
+    })
+  }
+
+  const addedFacultyName = addForm.name.trim()
+
+  setAddForm({
+    name: '',
+    employeeId: '',
+    department: hodDepartment || 'CSE',
+    designation: 'Assistant Professor',
+    email: '',
+    password: '',
+  })
+
+  setAddError('')
+
+  setFacultyToast({
+    type: 'success',
+    text: `Faculty member "${addedFacultyName}" added successfully.`,
+  })
+
+  await fetchFacultyList()
+} catch (err: any) {
+  setAddError(
+    err?.message || 'Failed to add faculty member.'
+  )
+} finally {
+  setAddLoading(false)
+}
   }
 
   // Open Update Modal
@@ -4327,6 +4554,22 @@ export function FacultyPage() {
                     If omitted, defaults to employeeid@klsvdit.edu.in
                   </p>
                 </div>
+
+                {/* Password */}
+<div className="space-y-1.5">
+  <Label>Password *</Label>
+  <Inp
+    type="password"
+    placeholder="Enter initial password"
+    value={addForm.password}
+    onChange={(e: any) =>
+      setAddForm({ ...addForm, password: e.target.value })
+    }
+  />
+  <p className="text-[11px] text-muted-foreground">
+    This password will be used for the faculty login.
+  </p>
+</div>
 
                 {/* Buttons */}
                 <div className="pt-4 flex items-center justify-end gap-2 border-t border-border">
