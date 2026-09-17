@@ -69,12 +69,12 @@ export default function LoginPage() {
       <div className="w-full max-w-[400px] rounded-xl bg-card p-8 border border-border shadow-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Welcome back</h1>
-          <p className="text-sm text-muted-foreground mt-2">Enter department admin credentials (e.g. admin@cse, admin@ec)</p>
+          <p className="text-sm text-muted-foreground mt-2">Enter department admin credentials</p>
         </div>
 
         <form onSubmit={login} className="space-y-5">
           <div className="space-y-2">
-            <Label required>Department Admin Username / Email</Label>
+            <Label required>Department Admin Email</Label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <UserRound className="h-4 w-4 text-muted-foreground" />
@@ -83,7 +83,7 @@ export default function LoginPage() {
                 type="text"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="admin@cse, admin@ec, admin@eee..."
+                placeholder="Enter Email"
                 className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pl-10"
                 required
               />
@@ -142,7 +142,7 @@ export default function LoginPage() {
 
       {/* Footer info */}
       <p className="mt-8 text-xs text-muted-foreground text-center">
-        By signing in, you agree to our Terms of Service and Privacy Policy.
+        KLS VDIT.
       </p>
     </main>
   )
