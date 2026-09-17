@@ -13,7 +13,7 @@ import {
   Search,
   LogOut,
   ChevronDown,
-  Shield,
+  //Shield,
   FileText
 } from 'lucide-react'
 
@@ -110,7 +110,7 @@ const SIDEBAR_ITEMS = [
   { label: 'Students', icon: GraduationCap, href: '/admin/students' },
   { label: 'Faculty', icon: Users, href: '/admin/faculty' },
   { label: 'Timetable', icon: Calendar, href: '/admin/timetable' },
-  { label: 'Settings', icon: Settings, href: '/admin/settings' },
+  //{ label: 'Settings', icon: Settings, href: '/admin/settings' },
 ]
 
 interface UserSession {
@@ -213,11 +213,15 @@ try {
       <aside className="w-64 border-r border-border bg-card hidden md:flex flex-col h-screen sticky top-0">
         {/* Brand */}
         <div className="h-14 border-b border-border flex items-center px-4 gap-2.5">
-          <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-xs">
-            <Shield className="size-4" />
-          </div>
+          <div className="flex size-8 items-center justify-center overflow-hidden rounded-md">
+  <img
+    src="/icon.png"
+    alt="AutoMark"
+    className="size-full object-cover"
+  />
+</div>
           <div className="flex flex-col">
-            <span className="font-bold text-foreground tracking-tight text-sm leading-tight">Automark</span>
+            <span className="font-bold text-foreground tracking-tight text-sm leading-tight">AutoMark</span>
             <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Admin Portal</span>
           </div>
         </div>
