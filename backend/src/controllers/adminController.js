@@ -5,6 +5,7 @@ import * as xlsx from "xlsx";
 import { parseStudentFile } from "../utils/studentFileParser.js";
 import { generatePdfTableBuffer } from "../utils/pdfGenerator.js";
 import { generateSecureTemporaryCredential } from "../utils/credentialGenerator.js";
+import { autoEnrollStudent, autoEnrollStudents } from "../utils/enrollmentHelper.js";
 
 export const getAdminDashboard = async (req, res) => {
   try {
@@ -579,6 +580,9 @@ export const createAdminStudent = async (req, res) => {
       academicYear: academicYear || "2026-27",
     });
 
+    // Auto-enroll student into all matching classes
+    await autoEnrollStudent(student);
+
     return res.status(201).json({
       success: true,
       message: "Student account created successfully",
@@ -837,10 +841,15 @@ export const importAdminStudents = async (req, res) => {
         name: user.name,
         usn: student.registerNumber,
         department: targetDepartmentCode,
+        departmentId: targetDept.id,
         semester,
+        section: "A",
         year,
       });
     }
+
+    // Auto-enroll all newly imported students into matching classes
+    await autoEnrollStudents(insertedStudents);
 
     return res.status(201).json({
       success: true,
@@ -1399,6 +1408,14 @@ export const updateAdminStudent = async (req, res) => {
 
     if (Object.keys(studentUpdates).length > 0) {
       await db.orm.public.Student.where({ id: student.id }).update(studentUpdates);
+
+      // Reconcile/auto-enroll in case semester or section was modified
+      await autoEnrollStudent({
+        id: student.id,
+        departmentId: student.departmentId,
+        semester: studentUpdates.semester ?? student.semester,
+        section: studentUpdates.section ?? student.section,
+      });
     }
 
     // Update Device Status on StudentDevice if provided

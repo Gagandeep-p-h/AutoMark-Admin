@@ -1,6 +1,7 @@
 import { db } from "../prisma/db.js";
 import bcrypt from "bcryptjs";
 import { getHodDepartment } from "../utils/hodDepartment.js";
+import { autoEnrollStudent } from "../utils/enrollmentHelper.js";
 
 const getStudentIdFromUser = async (userId) => {
   const students = await db.orm.public.Student.all();
@@ -147,6 +148,9 @@ export const createStudent = async (req, res) => {
       section,
       academicYear,
     });
+
+    // Auto-enroll student into matching classes
+    await autoEnrollStudent(student);
 
     res.status(201).json({
       success: true,
