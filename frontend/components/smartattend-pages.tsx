@@ -48,8 +48,12 @@ import {
   FacultyRecord,
   getDepartments,
   resetStudentDeviceAdmin,
+  createStudent,
+  updateStudentAdmin,
+  deleteStudentAdmin,
+  previewImportStudents,
+  commitImportStudents,
 } from '@/lib/api'
-import { createStudent } from '@/lib/api'
 
 export function compareUsn(a: string | undefined, b: string | undefined): number {
   if (!a && !b) return 0
@@ -697,6 +701,7 @@ export function StudentsPage({ adminDept: initialAdminDept }: { adminDept?: stri
   const [openYearDropdown, setOpenYearDropdown] = useState<string | null>(null)
   const [students_data, setStudentsData] = useState<Student[]>(students)
   const [isStudentsLoaded, setIsStudentsLoaded] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   // Custom lab batches mapped by section letter (admin can create new batches)
   const [customLabBatches, setCustomLabBatches] = useState<Record<string, string[]>>({})
@@ -732,6 +737,48 @@ export function StudentsPage({ adminDept: initialAdminDept }: { adminDept?: stri
         customLabBatches: updatedBatches || customLabBatches
       })
     }).catch(() => {})
+  }
+
+  // Mutations are followed by a backend read so the directory reflects the
+  // canonical record (including normalized USNs and device state), not a
+  // speculative local copy.
+  const refreshStudentsFromBackend = async (): Promise<Student[]> => {
+    const response = await fetch('/api/admin/students', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    })
+    const result = await response.json()
+    if (!response.ok || !result.success || !Array.isArray(result.data)) {
+      throw new Error(result.message || 'Failed to refresh students from backend')
+    }
+
+    const loadedStudents: Student[] = result.data.map((s: any) => {
+      const semesterNumber = Number.parseInt(String(s.semester ?? '').replace(/\D/g, ''), 10)
+      const year = semesterNumber <= 2 ? '1st Year' : semesterNumber <= 4 ? '2nd Year' : semesterNumber <= 6 ? '3rd Year' : semesterNumber <= 8 ? '4th Year' : ''
+      return {
+        id: s.id,
+        name: s.name ?? '',
+        usn: s.usn ?? '',
+        dept: s.department ?? '',
+        year,
+        semester: normalizeSemesterString(String(s.semester ?? '')),
+        section: s.section ?? '',
+        account: s.email ?? '',
+        device: s.boundDeviceName ?? '',
+        email: s.email ?? '',
+        password: null,
+        Lab: s.lab ?? s.Lab ?? '',
+        lab: s.lab ?? s.Lab ?? '',
+        deviceBound: Boolean(s.deviceBound),
+        boundDeviceName: s.boundDeviceName ?? null,
+      }
+    })
+    setStudentsData(loadedStudents)
+    try {
+      localStorage.setItem('smartattend_students_data', JSON.stringify(loadedStudents))
+    } catch {}
+    return loadedStudents
   }
 
   // Load students from the real SmartAttend backend
@@ -990,7 +1037,7 @@ useEffect(() => {
     setShowUpdateModal(true)
   }
 
-  const handleSaveUpdateStudent = (e: React.FormEvent) => {
+  const handleSaveUpdateStudent = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!updatingStudent) return
     const cleanName = updateName.trim()
@@ -1002,26 +1049,40 @@ useEffect(() => {
     setUpdateSubmitting(true)
     setUpdateError('')
 
-    const updatedDevice = updateDeviceStatus === 'Registered' ? 'Linked' : 'Not Linked'
-
-    setStudentsData(prev => prev.map(s => {
-      if (s.usn === updatingStudent.usn) {
-        return {
-          ...s,
+    try {
+      if (updatingStudent.id) {
+        await updateStudentAdmin(updatingStudent.id, {
           name: cleanName,
-          device: updatedDevice
-        }
+          deviceStatus: updateDeviceStatus,
+        })
       }
-      return s
-    }))
 
-    setShowUpdateModal(false)
-    setUpdateSubmitting(false)
-    setToastMessage({
-      type: 'success',
-      text: `Student "${cleanName}" updated successfully.`
-    })
-    setTimeout(() => setToastMessage(null), 5000)
+      const updatedDevice = updateDeviceStatus === 'Registered' ? 'Linked' : 'Not Linked'
+
+      setStudentsData(prev => prev.map(s => {
+        if (s.usn === updatingStudent.usn) {
+          return {
+            ...s,
+            name: cleanName,
+            device: updatedDevice
+          }
+        }
+        return s
+      }))
+      await refreshStudentsFromBackend()
+
+      setShowUpdateModal(false)
+      setToastMessage({
+        type: 'success',
+        text: `Student "${cleanName}" updated successfully.`
+      })
+      setTimeout(() => setToastMessage(null), 5000)
+    } catch (err: any) {
+      console.error('Update student error:', err)
+      setUpdateError(err.message || 'Failed to update student')
+    } finally {
+      setUpdateSubmitting(false)
+    }
   }
 
   const handleOpenDeviceModal = (student: Student) => {
@@ -1132,14 +1193,17 @@ useEffect(() => {
     return { prunedSections, prunedBatches }
   }
 
-  const handleConfirmDeleteStudent = () => {
+  const handleConfirmDeleteStudent = async () => {
     if (!deletingStudent) return
     setDeleteSubmitting(true)
     setDeleteError('')
 
-    setTimeout(() => {
-      const remainingStudents = students_data.filter(s => s.usn !== deletingStudent.usn)
-      setStudentsData(remainingStudents)
+    try {
+      if (deletingStudent.id) {
+        await deleteStudentAdmin(deletingStudent.id)
+      }
+
+      const remainingStudents = await refreshStudentsFromBackend()
 
       // If the deleted student was the last student in the currently selected section, reset to ALL
       if (selectedSection && selectedSection !== 'ALL') {
@@ -1174,17 +1238,20 @@ useEffect(() => {
       setCustomSections(prunedSections)
       setCustomLabBatches(prunedBatches)
 
-      persistStudents(remainingStudents, prunedSections, prunedBatches)
-      setDeleteSubmitting(false)
       setShowDeleteModal(false)
       setDeletingStudent(null)
 
       setToastMessage({
         type: 'success',
-        text: `Student "${deletingStudent.name}" removed from directory.`
+        text: `Student "${deletingStudent.name}" deleted successfully.`
       })
       setTimeout(() => setToastMessage(null), 5000)
-    }, 400)
+    } catch (err: any) {
+      console.error('Delete student error:', err)
+      setDeleteError(err.message || 'Failed to delete student.')
+    } finally {
+      setDeleteSubmitting(false)
+    }
   }
 
   // Add Student Form State
@@ -1483,14 +1550,30 @@ useEffect(() => {
     setImportError('')
     try {
       const sem = importSemester || YEAR_SEMESTERS[importYear]?.[0] || '1st Sem'
-      const data = await parseStudentFileClient(
-        importFile,
-        adminDept,
-        importYear,
-        sem,
-        students_data
-      )
-      setImportPreview(data)
+      const yearNumber = Number.parseInt(importYear, 10)
+      const serverPreview = await previewImportStudents(importFile, yearNumber)
+      setImportPreview({
+        totalFound: serverPreview.totalFound,
+        readyToImport: serverPreview.readyToImport,
+        alreadyExists: serverPreview.alreadyExists,
+        otherDeptCount: 0,
+        duplicatesInFile: serverPreview.duplicatesInFile,
+        invalidRows: serverPreview.invalidRows,
+        department: serverPreview.department,
+        year: importYear,
+        semester: sem,
+        students: serverPreview.students.map((student) => ({
+          usn: student.usn,
+          name: student.name,
+          department: student.department,
+          year: importYear,
+          semester: sem,
+          section: 'A',
+          labBatch: 'A1',
+          status: student.status,
+          reason: student.reason ?? undefined,
+        })),
+      })
       setImportStep('preview')
     } catch (err: any) {
       setImportError(err.message || 'Failed to parse file. Please verify format.')
@@ -1500,11 +1583,19 @@ useEffect(() => {
   }
 
   // Handle Commit Import into Directory
-  const handleCommitImport = () => {
-    if (!importPreview) return
-    const eligibleStudents = importPreview.students.filter(s => s.status === 'READY' || s.status === 'ALREADY_EXISTS')
+  const handleCommitImport = async () => {
+    if (!importPreview || !importFile) return
+    const eligibleStudents = importPreview.students.filter(s => s.status === 'READY')
     if (eligibleStudents.length === 0) return
     setImportSubmitting(true)
+
+    try {
+      await commitImportStudents(importFile, Number.parseInt(importYear, 10))
+    } catch (err: any) {
+      setImportSubmitting(false)
+      setImportError(err.message || 'Failed to import students into the database.')
+      return
+    }
 
     const updatedStudents = [...students_data]
     const addedCount = importPreview.readyToImport
@@ -1567,7 +1658,7 @@ useEffect(() => {
     setCustomLabBatches(updatedBatches)
 
     setStudentsData(updatedStudents)
-    persistStudents(updatedStudents, updatedSections, updatedBatches)
+    await refreshStudentsFromBackend()
 
     setImportSubmitting(false)
     setShowImportModal(false)
@@ -1576,10 +1667,10 @@ useEffect(() => {
     setImportStep('upload')
 
     const summaryText = addedCount > 0 && updatedCount > 0
-      ? `Imported ${addedCount} new and updated ${updatedCount} existing students in ${adminDept} (${importPreview.year}).`
+      ? `Imported ${addedCount} new student(s). Skipped ${updatedCount} existing student(s) already in database.`
       : addedCount > 0
       ? `Successfully imported ${addedCount} students into ${adminDept} (${importPreview.year}). Saved to directory.`
-      : `Successfully updated ${updatedCount} existing students to ${importPreview.year} (${importPreview.semester}). Saved to directory.`
+      : `Skipped ${updatedCount} student(s) already present in the database.`
 
     setToastMessage({
       type: 'success',
@@ -1588,8 +1679,8 @@ useEffect(() => {
     setTimeout(() => setToastMessage(null), 5000)
   }
 
-  // Handle Export Students to Excel (.xlsx) matching zoattendence
-  const handleExportStudents = () => {
+  // Handle Export Students to Excel (.xlsx) or CSV (.csv)
+  const handleExportStudents = (format: 'xlsx' | 'csv' = 'xlsx') => {
     const dataToExport = filtered.length > 0
       ? filtered
       : students_data.filter(s => {
@@ -1626,9 +1717,10 @@ useEffect(() => {
     const safeYear = (selectedYear || 'All_Years').replace(/\s+/g, '_')
     const safeSem = (selectedSem || 'All_Sems').replace(/\s+/g, '_')
     const safeSec = (selectedSection && selectedSection !== 'ALL' ? selectedSection : 'All_Sections').replace(/\s+/g, '_')
-    const fileName = `students_${adminDept}_${safeYear}_${safeSem}_${safeSec}_${new Date().toISOString().split('T')[0]}.xlsx`
+    const ext = format === 'csv' ? 'csv' : 'xlsx'
+    const fileName = `students_${adminDept}_${safeYear}_${safeSem}_${safeSec}_${new Date().toISOString().split('T')[0]}.${ext}`
 
-    XLSX.writeFile(workbook, fileName)
+    XLSX.writeFile(workbook, fileName, { bookType: ext as any })
 
     setToastMessage({
       type: 'success',
@@ -1784,42 +1876,59 @@ useEffect(() => {
     const targetLab = formData.labBatch.trim()
     const isDeviceReg = formData.device === 'Registered'
 
-    const updated = students_data.map(s =>
-      s.usn === studentToEdit.usn
-        ? {
-          ...s,
+    try {
+      if (studentToEdit.id) {
+        await updateStudentAdmin(studentToEdit.id, {
           name: formData.name.trim(),
           email: formData.email.trim() || `${cleanUsn.toLowerCase()}@klsvdit.edu.in`,
           usn: cleanUsn,
-          year: targetYear,
-          semester: targetSem,
           section: targetSection,
-          Lab: targetLab,
-          lab: targetLab,
-          device: isDeviceReg ? 'Linked' : 'Not Linked',
-          deviceBound: isDeviceReg,
-          boundDeviceName: isDeviceReg ? (s.boundDeviceName || `${formData.name.trim().split(' ')[0]}'s Device`) : null,
-        }
-        : s
-    )
+          labBatch: targetLab,
+          deviceStatus: formData.device,
+        })
+      }
 
-    setStudentsData(updated)
-    setShowEditModal(false)
-    setStudentToEdit(null)
+      const updated = students_data.map(s =>
+        s.usn === studentToEdit.usn
+          ? {
+            ...s,
+            name: formData.name.trim(),
+            email: formData.email.trim() || `${cleanUsn.toLowerCase()}@klsvdit.edu.in`,
+            usn: cleanUsn,
+            year: targetYear,
+            semester: targetSem,
+            section: targetSection,
+            Lab: targetLab,
+            lab: targetLab,
+            device: isDeviceReg ? 'Linked' : 'Not Linked',
+            deviceBound: isDeviceReg,
+            boundDeviceName: isDeviceReg ? (s.boundDeviceName || `${formData.name.trim().split(' ')[0]}'s Device`) : null,
+          }
+          : s
+      )
 
-    // Redirect view to the student's updated semester and section
-    setSelectedYear(targetYear)
-    setSelectedSem(targetSem)
-    setSelectedSection(targetSection)
-    setSelectedLabBatch('ALL')
+      setStudentsData(updated)
+      await refreshStudentsFromBackend()
+      setShowEditModal(false)
+      setStudentToEdit(null)
 
-    setFormData({ name: '', email: '', usn: '', year: '', semester: '', section: '', labBatch: '', account: 'Active', device: 'Not Registered', password: '' })
-    setFormErrors({})
-    setToastMessage({
-      type: 'success',
-      text: `Student "${formData.name.trim()}" updated successfully.`
-    })
-    setTimeout(() => setToastMessage(null), 5000)
+      // Redirect view to the student's updated semester and section
+      setSelectedYear(targetYear)
+      setSelectedSem(targetSem)
+      setSelectedSection(targetSection)
+      setSelectedLabBatch('ALL')
+
+      setFormData({ name: '', email: '', usn: '', year: '', semester: '', section: '', labBatch: '', account: 'Active', device: 'Not Registered', password: '' })
+      setFormErrors({})
+      setToastMessage({
+        type: 'success',
+        text: `Student "${formData.name.trim()}" updated successfully.`
+      })
+      setTimeout(() => setToastMessage(null), 5000)
+    } catch (err: any) {
+      console.error('Update student error:', err)
+      setFormErrors({ submit: err.message || 'Failed to update student.' })
+    }
   }
 
   // Handle Bulk Promotion of Students to Next Semester
@@ -2345,15 +2454,44 @@ useEffect(() => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleExportStudents}
-                      title="Export students to Excel (.xlsx)"
-                      className="inline-flex items-center justify-center h-9 px-4 rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Export
-                    </button>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowExportMenu(prev => !prev)}
+                        title="Export students to Excel or CSV"
+                        className="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                      >
+                        <Download className="mr-1.5 h-4 w-4" />
+                        Export
+                        <ChevronDown className="ml-1.5 h-3.5 w-3.5 opacity-70" />
+                      </button>
+                      {showExportMenu && (
+                        <div className="absolute right-0 mt-1 w-44 rounded-md border border-border bg-popover p-1 shadow-md z-20 text-popover-foreground">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowExportMenu(false)
+                              handleExportStudents('xlsx')
+                            }}
+                            className="flex w-full items-center rounded-sm px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                          >
+                            <FileSpreadsheet className="mr-2 h-3.5 w-3.5 text-emerald-600" />
+                            Excel (.xlsx)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowExportMenu(false)
+                              handleExportStudents('csv')
+                            }}
+                            className="flex w-full items-center rounded-sm px-2.5 py-1.5 text-xs font-medium hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                          >
+                            <FileText className="mr-2 h-3.5 w-3.5 text-sky-600" />
+                            CSV (.csv)
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <button
                       onClick={() => {
                         const defaultYear = selectedYear || '1st Year'
@@ -3043,6 +3181,13 @@ useEffect(() => {
                 </div>
 
                 <div className="space-y-4">
+                  {formErrors.submit && (
+                    <div className="p-3 text-xs bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 rounded-md flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                      <span>{formErrors.submit}</span>
+                    </div>
+                  )}
+
                   {/* Name */}
                   <div>
                     <Label required>Name</Label>
@@ -3660,7 +3805,7 @@ useEffect(() => {
                         <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{importPreview.readyToImport}</div>
                       </div>
                       <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
-                        <div className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">Already in DB (Will Update)</div>
+                        <div className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">Already in DB (Skipped)</div>
                         <div className="text-xl font-bold text-amber-700 dark:text-amber-400">{importPreview.alreadyExists}</div>
                       </div>
                       <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/50 dark:bg-slate-900/20">
@@ -3709,7 +3854,7 @@ useEffect(() => {
                                   </span>
                                 ) : st.status === 'ALREADY_EXISTS' ? (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800" title={st.reason || ''}>
-                                    Will Update
+                                    Already Exists
                                   </span>
                                 ) : st.status === 'OTHER_DEPT' ? (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" title={st.reason || ''}>
@@ -3755,15 +3900,11 @@ useEffect(() => {
                         <button
                           type="button"
                           onClick={handleCommitImport}
-                          disabled={importPreview.readyToImport + importPreview.alreadyExists === 0 || importSubmitting}
+                          disabled={importPreview.readyToImport === 0 || importSubmitting}
                           className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm disabled:opacity-50 transition-colors cursor-pointer"
                         >
                           {importSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                          {importPreview.readyToImport > 0 && importPreview.alreadyExists > 0
-                            ? `Import (${importPreview.readyToImport}) & Update (${importPreview.alreadyExists})`
-                            : importPreview.readyToImport > 0
-                            ? `Import ${importPreview.readyToImport} Students`
-                            : `Update ${importPreview.alreadyExists} Existing Students`}
+                          {`Import ${importPreview.readyToImport} Students`}
                         </button>
                       </div>
                     </div>
@@ -4830,4 +4971,3 @@ export function FacultyPage() {
     </AdminShell>
   )
 }
-

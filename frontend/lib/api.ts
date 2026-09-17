@@ -580,11 +580,23 @@ export async function commitAssignLabBatch(payload: AssignLabBatchPayload): Prom
 
 
 /**
- * Update student editable fields (name, deviceStatus)
+ * Update student editable fields (name, usn, email, section, labBatch, deviceStatus)
  */
 export async function updateStudentAdmin(
   id: number | string,
-  payload: { name?: string; deviceStatus?: string }
+  payload: {
+    name?: string;
+    usn?: string;
+    registerNumber?: string;
+    email?: string;
+    section?: string;
+    labBatch?: string;
+    lab?: string;
+    Lab?: string;
+    deviceStatus?: string;
+    semester?: number | string;
+    departmentId?: number;
+  }
 ): Promise<{ success: boolean; message: string; data?: any }> {
   const res = await fetch(`/api/admin/students/${id}`, {
     method: 'PATCH',

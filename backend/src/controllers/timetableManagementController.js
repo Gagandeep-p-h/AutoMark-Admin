@@ -223,58 +223,35 @@ export const getAdminTimetable = async (req, res) => {
     const currentYear = academicYear || "2025-2026";
     const currentSem = semester ? Number(semester) : 3;
     const currentSec = section ? String(section).toUpperCase() : "A";
-    const currentDeptId = targetDepartmentId || (departments[0]?.id ?? 1);
+    let currentDeptId = targetDepartmentId || 1;
 
     let slots = [];
     let batches = [];
 
     try {
-      const dbSlots = await db.orm.public.TimetableSlot.all();
-      const dbBatches = await db.orm.public.LabBatch.all();
-      const classes = await db.orm.public.Class.all();
+      const [dbSlots, dbBatches, classes, dbDepartments, dbSubjects, dbFaculty, users] = await Promise.all([
+        db.orm.public.TimetableSlot.all(),
+        db.orm.public.LabBatch.all(),
+        db.orm.public.Class.all(),
+        db.orm.public.Department.all(),
+        db.orm.public.Subject.all(),
+        db.orm.public.Faculty.all(),
+        db.orm.public.User.all(),
+      ]);
+      departments = dbDepartments;
+      currentDeptId = targetDepartmentId || departments[0]?.id || 1;
+      subjects = dbSubjects;
+      faculty = dbFaculty.map((member) => {
+        const user = users.find((candidate) => candidate.id === member.userId);
+        return { ...member, name: user?.name || "", email: user?.email || "" };
+      });
 
       if (dbSlots && dbSlots.length > 0) {
         slots = dbSlots
           .map((slot) => {
-            // Handle N/A / free slots (classId is null)
-            if (!slot.classId || slot.isNA) {
-              // N/A slots need departmentId/semester/section context from the batch or query params
-              const batch = dbBatches.find((b) => b.id === slot.batchId);
-              const slotDeptId = batch?.departmentId || currentDeptId;
-              const slotSem = batch?.semester || currentSem;
-              const slotSec = batch?.section || currentSec;
-              const slotYear = batch?.academicYear || currentYear;
-
-              if (
-                slotYear === currentYear &&
-                slotDeptId === currentDeptId &&
-                slotSem === currentSem &&
-                slotSec === currentSec
-              ) {
-                return {
-                  id: slot.id,
-                  classId: null,
-                  academicYear: slotYear,
-                  departmentId: slotDeptId,
-                  semester: slotSem,
-                  section: slotSec,
-                  dayOfWeek: slot.dayOfWeek,
-                  startTime: slot.startTime,
-                  endTime: slot.endTime,
-                  isLab: slot.isLab,
-                  isNA: true,
-                  subjectId: null,
-                  subjectCode: "N/A",
-                  subjectName: "Free Period",
-                  facultyId: null,
-                  facultyName: "",
-                  batchId: slot.batchId,
-                  batchName: batch?.name || null,
-                  room: null,
-                };
-              }
-              return null;
-            }
+            // A free/N-A editor cell has no Class relation. TimetableSlot.classId
+            // is required, so free cells intentionally have no database record.
+            if (!slot.classId) return null;
 
             const cls = classes.find((c) => c.id === slot.classId);
             if (!cls) return null;
@@ -516,32 +493,46 @@ export const saveAdminTimetableGrid = async (req, res) => {
       return saved;
     });
 
-    // Try saving to database if available
+    // Try saving to database if available. Replace every persisted slot for this
+    // exact section so removing a cell in the editor also removes it on reload.
     try {
+      const allClasses = await db.orm.public.Class.all();
+      const scopedClassIds = new Set(
+        allClasses
+          .filter(
+            (classItem) =>
+              classItem.departmentId === deptId &&
+              classItem.semester === sem &&
+              classItem.section === sec &&
+              classItem.academicYear === academicYear
+          )
+          .map((classItem) => classItem.id)
+      );
+      const existingDbSlots = await db.orm.public.TimetableSlot.all();
+      for (const existingSlot of existingDbSlots) {
+        if (scopedClassIds.has(existingSlot.classId)) {
+          await db.orm.public.TimetableSlot.where({ id: existingSlot.id }).delete();
+        }
+      }
+
       for (const s of normalizedSlots) {
         const isNASlot = !s.subjectId || !s.facultyId || s.isNA;
 
         if (isNASlot) {
-          // N/A / Free Period — save with classId: null, isNA: true
-          await db.orm.public.TimetableSlot.create({
-            classId: null,
-            dayOfWeek: s.dayOfWeek,
-            startTime: s.startTime,
-            endTime: s.endTime,
-            isLab: false,
-            isNA: true,
-            batchId: s.batchId ? Number(s.batchId) : null,
-          });
+          // classId is non-nullable. An omitted record restores as a free cell
+          // and avoids the invalid null foreign-key write.
+          continue;
         } else {
           // Regular class slot — find or create Class, then create TimetableSlot
-          let classItem = (await db.orm.public.Class.where({
+          const matchingClasses = await db.orm.public.Class.where({
             subjectId: Number(s.subjectId),
             facultyId: Number(s.facultyId),
             departmentId: deptId,
             semester: sem,
             section: sec,
             academicYear: academicYear,
-          }).first?.()) || null;
+          }).all();
+          let classItem = matchingClasses[0] || null;
 
           if (!classItem) {
             classItem = await db.orm.public.Class.create({
@@ -561,7 +552,6 @@ export const saveAdminTimetableGrid = async (req, res) => {
               startTime: s.startTime,
               endTime: s.endTime,
               isLab: Boolean(s.isLab),
-              isNA: false,
               batchId: s.batchId ? Number(s.batchId) : null,
             });
           }
@@ -569,6 +559,7 @@ export const saveAdminTimetableGrid = async (req, res) => {
       }
     } catch (dbErr) {
       // Database unavailable or not migrated; fallback store holds state reliably
+      console.error("Failed to persist timetable grid to database:", dbErr);
     }
 
     // ── B3 Overflow Auto-Enforcement ──────────────────────────────────────────
@@ -632,21 +623,6 @@ export const saveAdminTimetableGrid = async (req, res) => {
 
               inMemorySlots.push(naSlot);
               savedSlots.push(naSlot);
-
-              // Persist overflow N/A to DB
-              try {
-                await db.orm.public.TimetableSlot.create({
-                  classId: null,
-                  dayOfWeek,
-                  startTime,
-                  endTime,
-                  isLab: false,
-                  isNA: true,
-                  batchId: freeBatch.id,
-                });
-              } catch {
-                // DB unavailable — in-memory slot is sufficient
-              }
 
               console.log(
                 `[B3 Overflow] Auto-created N/A Free Period for batch ${freeBatch.name} on ${dayOfWeek} ${startTime}-${endTime}`
@@ -788,16 +764,8 @@ export const importAdminTimetable = async (req, res) => {
         const isNASlot = !s.subjectCode || s.subjectCode === "N/A" || s.isNA;
 
         if (isNASlot) {
-          await db.orm.public.TimetableSlot.create({
-            classId: null,
-            dayOfWeek: s.dayOfWeek,
-            startTime: s.startTime,
-            endTime: s.endTime,
-            isLab: false,
-            isNA: true,
-            batchId: s.batchId ? Number(s.batchId) : null,
-          });
-          dbSavedCount++;
+          // Free periods have no Class row; classId is required by the schema.
+          continue;
         } else if (s.subjectCode && s.departmentId) {
           // Try to find subject by code
           let subject = null;
@@ -822,14 +790,15 @@ export const importAdminTimetable = async (req, res) => {
           }
 
           if (subject && facultyItem) {
-            let classItem = (await db.orm.public.Class.where({
+            const matchingClasses = await db.orm.public.Class.where({
               subjectId: subject.id,
               facultyId: facultyItem.id,
               departmentId: s.departmentId,
               semester: s.semester,
               section: s.section,
               academicYear: s.academicYear,
-            }).first?.()) || null;
+            }).all();
+            let classItem = matchingClasses[0] || null;
 
             if (!classItem) {
               classItem = await db.orm.public.Class.create({
@@ -849,7 +818,6 @@ export const importAdminTimetable = async (req, res) => {
                 startTime: s.startTime,
                 endTime: s.endTime,
                 isLab: Boolean(s.isLab),
-                isNA: false,
                 batchId: s.batchId ? Number(s.batchId) : null,
               });
               dbSavedCount++;

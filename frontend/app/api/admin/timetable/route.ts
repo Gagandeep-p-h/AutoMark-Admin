@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     };
 
     const backendRes = await fetch(
-      `${BACKEND}/api/timetable${url.search}`,
+      `${BACKEND}/api/admin/timetable${url.search}`,
       { method: 'GET', headers, signal: AbortSignal.timeout(6000) }
     );
 
