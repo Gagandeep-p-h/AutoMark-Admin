@@ -1840,7 +1840,7 @@ useEffect(() => {
   }
 
   // Edit Student
-  const handleEditStudent = () => {
+  const handleEditStudent = async () => {
     if (!studentToEdit) return
 
     const errors: Record<string, string> = {}
