@@ -1,6 +1,7 @@
 import { db } from "../prisma/db.js";
 import * as xlsx from "xlsx";
 import PDFDocument from "pdfkit";
+import { autoEnrollClass } from "../utils/enrollmentHelper.js";
 
 // Helper: Resolve HOD department ID from authoritative JWT/session
 const getHodDeptId = (req) => {
@@ -543,6 +544,9 @@ export const saveAdminTimetableGrid = async (req, res) => {
               section: sec,
               academicYear: academicYear,
             });
+
+            // Auto-enroll all matching students into this new class
+            await autoEnrollClass(classItem);
           }
 
           if (classItem && classItem.id) {
@@ -809,6 +813,9 @@ export const importAdminTimetable = async (req, res) => {
                 section: s.section,
                 academicYear: s.academicYear,
               });
+
+              // Auto-enroll all matching students into this new class
+              await autoEnrollClass(classItem);
             }
 
             if (classItem && classItem.id) {
