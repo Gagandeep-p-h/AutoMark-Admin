@@ -1258,6 +1258,8 @@ const [section, setSection] = useState('A')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [initialDataLoaded, setInitialDataLoaded] = useState(false)
+  const initialLoadStarted = useRef(false)
   const [showBatchModal, setShowBatchModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -1316,6 +1318,8 @@ const [section, setSection] = useState('A')
         'Failed to load initial subjects/faculty:',
         error
       )
+    } finally {
+      if (isMounted) setInitialDataLoaded(true)
     }
   }
 
@@ -1352,9 +1356,16 @@ const [section, setSection] = useState('A')
 
   const loadedDepts =
     json.departments || json.data?.departments || []
+  const loadedSubjects =
+    json.subjects || json.data?.subjects || []
+  const loadedFaculty =
+    json.faculty || json.data?.faculty || []
 
   setBatches(loadedBatches)
   setTimetableSlots(loadedSlots)
+
+  if (loadedSubjects.length > 0) setSubjects(loadedSubjects)
+  if (loadedFaculty.length > 0) setFaculty(loadedFaculty)
 
   if (loadedDepts.length > 0) {
     setDepartments(loadedDepts)
@@ -1397,6 +1408,13 @@ const [section, setSection] = useState('A')
       setLoading(false)
     }
   }, [academicYear, activeYearConfig.label, departmentId, semester, section, showToast])
+
+  // Render the saved timetable as soon as its editor reference data is ready.
+  useEffect(() => {
+    if (!initialDataLoaded || initialLoadStarted.current) return
+    initialLoadStarted.current = true
+    void loadTimetable()
+  }, [initialDataLoaded, loadTimetable])
 
   // ── Validate Grid ───────────────────────────────────────────────────────────
 

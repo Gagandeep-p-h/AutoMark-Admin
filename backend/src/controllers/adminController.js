@@ -611,7 +611,7 @@ export const createAdminStudent = async (req, res) => {
 };
 
 /**
- * Bulk imports students from Excel or PDF file
+ * Bulk imports students from Excel, CSV, or PDF file
  * 
  * Features:
  * - Automatically derives department from authenticated HOD JWT
@@ -648,7 +648,7 @@ export const importAdminStudents = async (req, res) => {
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({
         success: false,
-        message: "Please upload an Excel (.xlsx, .xls) or PDF (.pdf) file",
+        message: "Please upload an Excel (.xlsx, .xls), CSV (.csv), or PDF (.pdf) file",
       });
     }
 
@@ -663,7 +663,7 @@ export const importAdminStudents = async (req, res) => {
       });
     }
 
-    // Parse the uploaded file (Excel or PDF)
+    // Parse the uploaded file (Excel, CSV, or PDF)
     let parsed;
     try {
       parsed = await parseStudentFile(
@@ -1326,18 +1326,79 @@ export const updateAdminStudent = async (req, res) => {
       });
     }
 
-    // 2. Whitelist ONLY name and deviceStatus - all other fields discarded
-    const { name, deviceStatus } = req.body;
+    // 2. Allow updating editable fields: name, email, usn/registerNumber, section, Lab/labBatch, deviceStatus
+    const { name, email, usn, registerNumber, section, lab, Lab, labBatch, semester, deviceStatus } = req.body;
     let updatedName = null;
+    let updatedEmail = null;
+    let updatedUsn = null;
+    let updatedSection = null;
+    let updatedLab = null;
     let updatedDeviceStatus = null;
+
+    const userUpdates = {};
 
     // Update Name on User record if provided
     if (typeof name === "string" && name.trim()) {
-      const trimmedName = name.trim();
-      if (student.userId) {
-        await db.orm.public.User.where({ id: student.userId }).update({ name: trimmedName });
-        updatedName = trimmedName;
+      updatedName = name.trim();
+      userUpdates.name = updatedName;
+    }
+
+    // Update Email on User record if provided (with collision check)
+    if (typeof email === "string" && email.trim()) {
+      const normalizedEmail = email.trim().toLowerCase();
+      const allUsers = await db.orm.public.User.all();
+      const duplicateUser = allUsers.find(
+        (u) => u.id !== student.userId && u.email.toLowerCase() === normalizedEmail
+      );
+      if (duplicateUser) {
+        return res.status(409).json({
+          success: false,
+          message: `Email "${normalizedEmail}" is already in use by another account.`,
+        });
       }
+      updatedEmail = normalizedEmail;
+      userUpdates.email = updatedEmail;
+    }
+
+    if (Object.keys(userUpdates).length > 0 && student.userId) {
+      await db.orm.public.User.where({ id: student.userId }).update(userUpdates);
+    }
+
+    // Update Student record fields
+    const studentUpdates = {};
+    const targetUsn = (registerNumber || usn || "").trim().toUpperCase();
+    if (targetUsn && targetUsn !== student.registerNumber) {
+      const allStudents = await db.orm.public.Student.all();
+      const duplicateStudent = allStudents.find(
+        (s) => s.id !== student.id && s.registerNumber.toUpperCase() === targetUsn
+      );
+      if (duplicateStudent) {
+        return res.status(409).json({
+          success: false,
+          message: `Register Number (USN) "${targetUsn}" is already in use.`,
+        });
+      }
+      studentUpdates.registerNumber = targetUsn;
+      updatedUsn = targetUsn;
+    }
+
+    if (typeof section === "string" && section.trim()) {
+      updatedSection = section.trim().toUpperCase();
+      studentUpdates.section = updatedSection;
+    }
+
+    const targetLab = (Lab || lab || labBatch || "").trim();
+    if (targetLab) {
+      updatedLab = targetLab;
+      studentUpdates.Lab = updatedLab;
+    }
+
+    if (semester !== undefined && semester !== null && !isNaN(Number(semester))) {
+      studentUpdates.semester = Number(semester);
+    }
+
+    if (Object.keys(studentUpdates).length > 0) {
+      await db.orm.public.Student.where({ id: student.id }).update(studentUpdates);
     }
 
     // Update Device Status on StudentDevice if provided
@@ -1373,8 +1434,11 @@ export const updateAdminStudent = async (req, res) => {
       message: "Student updated successfully.",
       data: {
         id: student.id,
-        usn: student.registerNumber,
+        usn: updatedUsn || student.registerNumber,
         name: updatedName,
+        email: updatedEmail,
+        section: updatedSection || student.section,
+        lab: updatedLab || student.Lab,
         deviceStatus: updatedDeviceStatus,
       },
     });
@@ -2575,7 +2639,6 @@ export const exportAdminStudents = async (req, res) => {
     });
   }
 };
-
 
 
 

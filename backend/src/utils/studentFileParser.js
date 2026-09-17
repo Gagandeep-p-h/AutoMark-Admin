@@ -10,7 +10,7 @@ const VTU_USN_REGEX = /\b([0-9][A-Z]{2}[0-9]{2}[A-Z]{2,3}[0-9]{3})\b/i;
 const GENERAL_USN_REGEX = /\b([0-9A-Z]{8,12})\b/i;
 
 /**
- * Parses an uploaded student list file (Excel or PDF) and extracts [ { usn, name } ].
+ * Parses an uploaded student list file (Excel, CSV, or PDF) and extracts [ { usn, name } ].
  * 
  * @param {Buffer} buffer - File buffer from multer memoryStorage
  * @param {string} originalname - Original file name (e.g. 'students.xlsx')
@@ -20,7 +20,15 @@ const GENERAL_USN_REGEX = /\b([0-9A-Z]{8,12})\b/i;
 export async function parseStudentFile(buffer, originalname = '', mimetype = '') {
   const filename = String(originalname).toLowerCase();
 
-  if (filename.endsWith('.xlsx') || filename.endsWith('.xls') || mimetype.includes('spreadsheet') || mimetype.includes('excel')) {
+  if (
+    filename.endsWith('.xlsx') ||
+    filename.endsWith('.xls') ||
+    filename.endsWith('.csv') ||
+    mimetype.includes('spreadsheet') ||
+    mimetype.includes('excel') ||
+    mimetype.includes('csv') ||
+    mimetype.includes('text/plain')
+  ) {
     return parseExcelFile(buffer);
   }
 
@@ -28,18 +36,23 @@ export async function parseStudentFile(buffer, originalname = '', mimetype = '')
     return parsePdfFile(buffer);
   }
 
-  throw new Error('Unsupported file format. Please upload an Excel (.xlsx, .xls) or PDF (.pdf) file.');
+  throw new Error('Unsupported file format. Please upload an Excel (.xlsx, .xls), CSV (.csv), or PDF (.pdf) file.');
 }
 
 /**
- * Parses Excel files (.xlsx / .xls)
+ * Parses Excel files (.xlsx / .xls) and CSV files (.csv)
  */
 export function parseExcelFile(buffer) {
   let workbook;
   try {
     workbook = xlsx.read(buffer, { type: 'buffer' });
   } catch (err) {
-    throw new Error('Could not parse Excel file. The file may be corrupt or encrypted.');
+    try {
+      const text = buffer.toString('utf8');
+      workbook = xlsx.read(text, { type: 'string' });
+    } catch (csvErr) {
+      throw new Error('Could not parse Excel or CSV file. The file may be corrupt or encrypted.');
+    }
   }
 
   if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
