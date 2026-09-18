@@ -1,11 +1,11 @@
 import { getSession } from '@/lib/auth';
-
-const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export async function GET(req: Request) {
   try {
     const session = await getSession();
     const url = new URL(req.url);
+    const backendUrl = getBackendUrl();
 
     const headers: Record<string, string> = {};
 
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
       headers['Authorization'] = `Bearer ${session.backendToken}`;
     }
 
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/students/export${url.search}`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/students/export${url.search}`, {
       method: 'GET',
       headers,
       signal: AbortSignal.timeout(15000),

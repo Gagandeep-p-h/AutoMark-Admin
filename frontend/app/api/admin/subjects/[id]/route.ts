@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession, getBackendToken } from '@/lib/auth';
-
-const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 /** PUT /api/admin/subjects/[id] — update subject */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -10,8 +9,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const session = await getSession();
     const body = await req.json();
     const token = await getBackendToken(session);
+    const backendUrl = getBackendUrl();
 
-    const backendRes = await fetch(`${BACKEND}/api/subjects/${id}`, {
+    const backendRes = await fetch(`${backendUrl}/api/subjects/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -19,7 +19,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();
@@ -35,14 +35,15 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const session = await getSession();
     const token = await getBackendToken(session);
+    const backendUrl = getBackendUrl();
 
-    const backendRes = await fetch(`${BACKEND}/api/subjects/${id}`, {
+    const backendRes = await fetch(`${backendUrl}/api/subjects/${id}`, {
       method: 'DELETE',
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();

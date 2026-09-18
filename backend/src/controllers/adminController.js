@@ -563,9 +563,9 @@ export const createAdminStudent = async (req, res) => {
 
     const cleanSection = section
       ? String(section)
-          .replace(/section/i, "")
-          .trim()
-          .toUpperCase()
+        .replace(/section/i, "")
+        .trim()
+        .toUpperCase()
       : "A";
     const cleanLab = `${cleanSection}1`;
 
@@ -907,18 +907,11 @@ export const assignAdminStudentDivision = async (req, res) => {
       });
     }
 
-    if (!division) {
+    // 2. Validation: Division format
+    if (!/^[A-Z0-9_-]+$/i.test(division)) {
       return res.status(400).json({
         success: false,
-        message: "Division is required (must be A, B, C, or D)",
-      });
-    }
-
-    // 2. Validation: Division strictly A, B, C, or D
-    if (!["A", "B", "C", "D"].includes(division)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid division selected. Division must be one of: A, B, C, D",
+        message: "Invalid division selected. Division must contain valid alphanumeric characters.",
       });
     }
 
@@ -1092,22 +1085,15 @@ export const assignAdminStudentLabBatch = async (req, res) => {
       });
     }
 
-    // 2. Validation: Batch format and max 4 batches per division
-    const VALID_LAB_BATCHES = [
-      "A1", "A2", "A3", "A4",
-      "B1", "B2", "B3", "B4",
-      "C1", "C2", "C3", "C4",
-      "D1", "D2", "D3", "D4",
-    ];
-
-    if (!VALID_LAB_BATCHES.includes(labBatch)) {
+    // 2. Validation: Batch format (e.g. A1, B2, E1)
+    if (!/^[A-Z0-9_-]+$/i.test(labBatch)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid lab batch "${labBatch}". Maximum 4 batches per division allowed: A1-A4, B1-B4, C1-C4, D1-D4.`,
+        message: `Invalid lab batch "${labBatch}". Must be a valid batch code (e.g. A1, B2).`,
       });
     }
 
-    const targetDivision = labBatch[0]; // e.g. "A" for "A1"
+    const targetDivision = labBatch.replace(/\d+$/, "").toUpperCase() || labBatch[0].toUpperCase();
 
     // 3. Validation: USN Range ordering and prefix compatibility
     const rangeSpec = parseAndValidateUsnRange(startUsn, endUsn);
@@ -1513,7 +1499,7 @@ export const getAdminStudentDevice = async (req, res) => {
         department: studentDept?.code || "Unknown",
         devices: devices.map((d) => ({
           id: d.id,
-          publicKeyFingerprint: d.publicKey && d.publicKey.length > 16 
+          publicKeyFingerprint: d.publicKey && d.publicKey.length > 16
             ? `${d.publicKey.substring(0, 8)}...${d.publicKey.substring(d.publicKey.length - 8)}`
             : d.publicKey,
           isActive: d.isActive,

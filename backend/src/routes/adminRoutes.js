@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 import multer from "multer";
 
 import {
@@ -133,6 +133,13 @@ router.post(
 );
 
 router.patch(
+  "/students/:id",
+  authenticate,
+  authorize("ADMIN", "HOD"),
+  updateAdminStudent
+);
+
+router.put(
   "/students/:id",
   authenticate,
   authorize("ADMIN", "HOD"),

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession, getBackendToken } from '@/lib/auth';
-
-const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 /** GET /api/admin/subjects — list all subjects */
 export async function GET(req: Request) {
@@ -9,14 +8,15 @@ export async function GET(req: Request) {
     const session = await getSession();
     const token = await getBackendToken(session);
     const url = new URL(req.url);
+    const backendUrl = getBackendUrl();
 
-    const backendRes = await fetch(`${BACKEND}/api/subjects${url.search}`, {
+    const backendRes = await fetch(`${backendUrl}/api/subjects${url.search}`, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();
@@ -32,8 +32,9 @@ export async function POST(req: Request) {
     const session = await getSession();
     const body = await req.json();
     const token = await getBackendToken(session);
+    const backendUrl = getBackendUrl();
 
-    const backendRes = await fetch(`${BACKEND}/api/subjects`, {
+    const backendRes = await fetch(`${backendUrl}/api/subjects`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();

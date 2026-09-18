@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession, getBackendToken } from '@/lib/auth';
-
-const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 /**
  * GET  /api/admin/batches  — list batches for dept/sem/section
@@ -11,6 +10,7 @@ export async function GET(req: Request) {
   try {
     const session = await getSession();
     const url = new URL(req.url);
+    const backendUrl = getBackendUrl();
 
     const token = await getBackendToken(session);
     const headers: Record<string, string> = {
@@ -19,8 +19,8 @@ export async function GET(req: Request) {
     };
 
     const backendRes = await fetch(
-      `${BACKEND}/api/admin/batches${url.search}`,
-      { method: 'GET', headers, signal: AbortSignal.timeout(5000) }
+      `${backendUrl}/api/admin/batches${url.search}`,
+      { method: 'GET', headers, signal: AbortSignal.timeout(15000) }
     );
     const data = await backendRes.json();
     return NextResponse.json(data, { status: backendRes.status });
@@ -33,6 +33,7 @@ export async function POST(req: Request) {
   try {
     const session = await getSession();
     const body = await req.json();
+    const backendUrl = getBackendUrl();
 
     const token = await getBackendToken(session);
     const headers: Record<string, string> = {
@@ -41,11 +42,11 @@ export async function POST(req: Request) {
       Authorization: `Bearer ${token}`,
     };
 
-    const backendRes = await fetch(`${BACKEND}/api/admin/batches`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/batches`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000),
     });
     const data = await backendRes.json();
     return NextResponse.json(data, { status: backendRes.status });

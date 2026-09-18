@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-
-const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export async function GET(
   req: Request,
@@ -10,6 +9,7 @@ export async function GET(
   try {
     const session = await getSession();
     const params = await Promise.resolve(context.params);
+    const backendUrl = getBackendUrl();
 
     const headers: Record<string, string> = {
       'Accept': 'application/json',
@@ -19,10 +19,10 @@ export async function GET(
       headers['Authorization'] = `Bearer ${session.backendToken}`;
     }
 
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/students/${params.id}/device`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/students/${params.id}/device`, {
       method: 'GET',
       headers,
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();
@@ -42,6 +42,7 @@ export async function POST(
   try {
     const session = await getSession();
     const params = await Promise.resolve(context.params);
+    const backendUrl = getBackendUrl();
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -52,10 +53,10 @@ export async function POST(
       headers['Authorization'] = `Bearer ${session.backendToken}`;
     }
 
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/students/${params.id}/device/reset`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/students/${params.id}/device/reset`, {
       method: 'POST',
       headers,
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();

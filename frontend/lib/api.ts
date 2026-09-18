@@ -70,7 +70,7 @@ const getApiBase = () => {
   }
   return process.env.BACKEND_INTERNAL_URL 
     ? `${process.env.BACKEND_INTERNAL_URL}/api`
-    : 'http://localhost:5001/api';
+    : 'https://automark-backend-wput.onrender.com/api';
 };
 
 /**
@@ -81,7 +81,7 @@ export async function checkBackendHealth(): Promise<BackendHealth> {
     const res = await fetch(`${getApiBase()}/health`, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (res.ok) {

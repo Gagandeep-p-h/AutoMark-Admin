@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-
-const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export async function POST(req: Request) {
   try {
@@ -16,13 +15,14 @@ export async function POST(req: Request) {
 
     const url = new URL(req.url);
     const formData = await req.formData();
+    const backendUrl = getBackendUrl();
 
     const headers: Record<string, string> = {
       'Authorization': `Bearer ${session.backendToken}`,
       'Accept': 'application/json',
     };
 
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/students/import${url.search}`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/students/import${url.search}`, {
       method: 'POST',
       headers,
       body: formData,

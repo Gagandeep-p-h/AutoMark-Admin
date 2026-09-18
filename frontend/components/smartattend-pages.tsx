@@ -4073,12 +4073,13 @@ export function FacultyPage() {
 
   const DEPT_OPTIONS = [
     { code: 'CSE', name: 'Computer Science and Engineering' },
-    { code: 'AIML', name: 'Artificial Intelligence and Machine Learning' },
-    { code: 'ECE', name: 'Electronics and Communication' },
-    { code: 'EEE', name: 'Electrical and Electronics Engineering' },
-    { code: 'MECH', name: 'Mechanical Engineering' },
-    { code: 'CIVIL', name: 'Civil Engineering' },
+    { code: 'ECE', name: 'Electronics and Communication Engineering' },
+    { code: 'CSE-AIML', name: 'Computer Science and Engineering (AIML)' },
     { code: 'CSE-DS', name: 'Computer Science and Engineering (Data Science)' },
+    { code: 'ME', name: 'Mechanical Engineering' },
+    { code: 'CV', name: 'Civil Engineering' },
+    { code: 'HS', name: 'Humanities and Sciences' },
+    { code: 'EEE', name: 'Electrical and Electronics Engineering' },
   ]
 
   // const DESIGNATION_OPTIONS = [
@@ -4181,16 +4182,18 @@ export function FacultyPage() {
 
   // The form stores department code such as "CSE"
   // HOD users remain restricted to their own department.
-  const selectedDepartmentCode = (
-    hodDepartment || addForm.department
-  )
+  const rawDeptString = String(hodDepartment || addForm.department || 'CSE')
+  const selectedDepartmentCode = rawDeptString
     .split(' - ')[0]
     .trim()
     .toUpperCase()
 
   const selectedDepartment = departments.find(
-    (dept) => dept.code.toUpperCase() === selectedDepartmentCode
-  )
+    (dept) =>
+      dept.code.toUpperCase() === selectedDepartmentCode ||
+      String(dept.id) === selectedDepartmentCode ||
+      dept.name.toUpperCase() === selectedDepartmentCode
+  ) || departments[0]
 
   if (!selectedDepartment) {
     throw new Error(
@@ -4653,7 +4656,9 @@ export function FacultyPage() {
                     className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
                   >
                     {isHod && hodDepartment ? (
-                      <option value={hodDepartment}>{hodDepartment} Department (Auto-enforced)</option>
+                      <option value={hodDepartment}>
+                        {DEPT_OPTIONS.find(d => d.code === hodDepartment)?.code || hodDepartment} Department (Auto-enforced)
+                      </option>
                     ) : (
                       DEPT_OPTIONS.map((d) => (
                         <option key={d.code} value={d.code}>
@@ -4796,7 +4801,9 @@ export function FacultyPage() {
                     className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
                   >
                     {isHod && hodDepartment ? (
-                      <option value={hodDepartment}>{hodDepartment} Department (Locked)</option>
+                      <option value={hodDepartment}>
+                        {DEPT_OPTIONS.find(d => d.code === hodDepartment)?.code || hodDepartment} Department (Locked)
+                      </option>
                     ) : (
                       DEPT_OPTIONS.map((d) => (
                         <option key={d.code} value={d.code}>

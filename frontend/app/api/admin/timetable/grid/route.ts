@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession, getBackendToken } from '@/lib/auth';
-
-const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 /**
  * POST /api/admin/timetable/grid
@@ -11,6 +10,7 @@ export async function POST(req: Request) {
   try {
     const session = await getSession();
     const body = await req.json();
+    const backendUrl = getBackendUrl();
 
     const token = await getBackendToken(session);
     const headers: Record<string, string> = {
@@ -19,11 +19,11 @@ export async function POST(req: Request) {
       Authorization: `Bearer ${token}`,
     };
 
-    const backendRes = await fetch(`${BACKEND}/api/admin/timetable/grid`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/timetable/grid`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();

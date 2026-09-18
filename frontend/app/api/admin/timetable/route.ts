@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession, getBackendToken } from '@/lib/auth';
-
-const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 /**
  * GET /api/admin/timetable
@@ -11,6 +10,7 @@ export async function GET(req: Request) {
   try {
     const session = await getSession();
     const url = new URL(req.url);
+    const backendUrl = getBackendUrl();
 
     const token = await getBackendToken(session);
     const headers: Record<string, string> = {
@@ -19,8 +19,8 @@ export async function GET(req: Request) {
     };
 
     const backendRes = await fetch(
-      `${BACKEND}/api/admin/timetable${url.search}`,
-      { method: 'GET', headers, signal: AbortSignal.timeout(6000) }
+      `${backendUrl}/api/admin/timetable${url.search}`,
+      { method: 'GET', headers, signal: AbortSignal.timeout(15000) }
     );
 
     const data = await backendRes.json();

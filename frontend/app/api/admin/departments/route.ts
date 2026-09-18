@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-
-const BACKEND_INTERNAL_URL =
-  process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000'
+import { getBackendUrl } from '@/lib/backend-url'
 
 export async function GET() {
   try {
@@ -22,8 +20,9 @@ export async function GET() {
       )
     }
 
+    const backendUrl = getBackendUrl()
     const response = await fetch(
-      `${BACKEND_INTERNAL_URL}/api/departments`,
+      `${backendUrl}/api/departments`,
       {
         method: 'GET',
         headers: {
@@ -31,6 +30,7 @@ export async function GET() {
           Authorization: `Bearer ${session.backendToken}`,
         },
         cache: 'no-store',
+        signal: AbortSignal.timeout(15000),
       }
     )
 

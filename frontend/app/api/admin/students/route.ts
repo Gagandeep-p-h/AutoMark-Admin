@@ -1,8 +1,6 @@
-﻿import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getBackendToken, getSession } from '@/lib/auth'
-
-const BACKEND_INTERNAL_URL =
-  process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000'
+import { getBackendUrl } from '@/lib/backend-url'
 
 export async function GET(req: Request) {
   try {
@@ -26,9 +24,10 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const query = searchParams.toString()
+    const backendBase = getBackendUrl()
 
     const backendUrl =
-      `${BACKEND_INTERNAL_URL}/api/admin/students` +
+      `${backendBase}/api/admin/students` +
       (query ? `?${query}` : '')
 
     const response = await fetch(backendUrl, {
@@ -38,6 +37,7 @@ export async function GET(req: Request) {
         Authorization: `Bearer ${token}`,
       },
       cache: 'no-store',
+      signal: AbortSignal.timeout(15000),
     })
 
     const data = await response.json()
@@ -77,9 +77,10 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
+    const backendBase = getBackendUrl()
 
     const response = await fetch(
-      `${BACKEND_INTERNAL_URL}/api/admin/students`,
+      `${backendBase}/api/admin/students`,
       {
         method: 'POST',
         headers: {
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
         },
         body: JSON.stringify(body),
         cache: 'no-store',
+        signal: AbortSignal.timeout(15000),
       }
     )
 

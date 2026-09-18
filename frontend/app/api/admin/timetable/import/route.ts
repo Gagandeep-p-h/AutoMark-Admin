@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession, getBackendToken } from '@/lib/auth';
-
-const BACKEND = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 /**
  * POST /api/admin/timetable/import
@@ -12,6 +11,7 @@ export async function POST(req: Request) {
     const session = await getSession();
     const url = new URL(req.url);
     const formData = await req.formData();
+    const backendUrl = getBackendUrl();
 
     const token = await getBackendToken(session);
     const headers: Record<string, string> = {
@@ -20,12 +20,12 @@ export async function POST(req: Request) {
     // Do NOT set Content-Type — browser/fetch sets correct multipart boundary automatically
 
     const backendRes = await fetch(
-      `${BACKEND}/api/admin/timetable/import${url.search}`,
+      `${backendUrl}/api/admin/timetable/import${url.search}`,
       {
         method: 'POST',
         headers,
         body: formData,
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(30000),
       }
     );
 

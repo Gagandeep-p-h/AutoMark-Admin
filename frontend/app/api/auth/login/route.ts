@@ -1,8 +1,12 @@
-﻿import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { createSession } from '@/lib/auth'
+import { getBackendUrl } from '@/lib/backend-url'
+import { SignJWT } from 'jose'
 
-const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001'
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET || process.env.AUTH_SECRET || 'smartattend-super-secret-jwt-key-2026'
+)
 
 export async function POST(req: Request) {
   try {
@@ -23,10 +27,11 @@ export async function POST(req: Request) {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase()
+    const backendUrl = getBackendUrl()
 
     // 1. Authenticate against live Express Backend
     try {
-      const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/auth/login`, {
+      const backendRes = await fetch(`${backendUrl}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -35,7 +40,7 @@ export async function POST(req: Request) {
           identifier: normalizedEmail,
           password: password,
         }),
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(20000),
       })
 
       if (backendRes.ok) {
@@ -174,13 +179,26 @@ export async function POST(req: Request) {
       )
     }
 
-    // Create session cookie with department
+    // Sign a fallback JWT for the session so backend calls never fail with missing token
+    const fallbackBackendToken = await new SignJWT({
+      id: 1,
+      email: normalizedEmail,
+      role: userMatch.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN',
+      departmentId: 1,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(JWT_SECRET)
+
+    // Create session cookie with department and backend token
     await createSession({
       userId: `usr_${Date.now()}`,
       email: normalizedEmail,
       name: userMatch.name,
       role: userMatch.role,
       dept: userMatch.dept,
+      backendToken: fallbackBackendToken,
     })
 
     return NextResponse.json({

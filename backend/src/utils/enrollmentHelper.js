@@ -5,7 +5,7 @@ import { db } from "../prisma/db.js";
  */
 function normalizeSection(sec) {
   if (!sec) return "A";
-  return String(sec).replace(/section/i, "").trim().toUpperCase() || "A";
+  return String(sec).replace(/section|division|div|sec/gi, "").trim().toUpperCase() || "A";
 }
 
 /**

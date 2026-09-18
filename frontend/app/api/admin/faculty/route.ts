@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-
-const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export async function GET(req: Request) {
   try {
     const session = await getSession();
     const url = new URL(req.url);
+    const backendUrl = getBackendUrl();
 
     const headers: Record<string, string> = {
       'Accept': 'application/json',
@@ -16,10 +16,10 @@ export async function GET(req: Request) {
       headers['Authorization'] = `Bearer ${session.backendToken}`;
     }
 
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/faculty${url.search}`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/faculty${url.search}`, {
       method: 'GET',
       headers,
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();
@@ -36,6 +36,7 @@ export async function POST(req: Request) {
   try {
     const session = await getSession();
     const body = await req.json();
+    const backendUrl = getBackendUrl();
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -46,11 +47,11 @@ export async function POST(req: Request) {
       headers['Authorization'] = `Bearer ${session.backendToken}`;
     }
 
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/faculty`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/faculty`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();

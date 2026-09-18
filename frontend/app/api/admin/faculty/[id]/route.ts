@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-
-const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export async function PATCH(
   req: Request,
@@ -11,6 +10,7 @@ export async function PATCH(
     const { id } = await params;
     const session = await getSession();
     const body = await req.json();
+    const backendUrl = getBackendUrl();
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -21,11 +21,11 @@ export async function PATCH(
       headers['Authorization'] = `Bearer ${session.backendToken}`;
     }
 
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/faculty/${id}`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/faculty/${id}`, {
       method: 'PATCH',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();
@@ -52,6 +52,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const session = await getSession();
+    const backendUrl = getBackendUrl();
 
     const headers: Record<string, string> = {
       'Accept': 'application/json',
@@ -61,10 +62,10 @@ export async function DELETE(
       headers['Authorization'] = `Bearer ${session.backendToken}`;
     }
 
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/faculty/${id}`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/faculty/${id}`, {
       method: 'DELETE',
       headers,
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();

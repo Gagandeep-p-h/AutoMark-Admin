@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-
-const BACKEND_INTERNAL_URL =
-  process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url'
 
 /** Safely parse JSON from a fetch Response; returns a fallback object if the body is not JSON (e.g. HTML error page from proxy/server). */
 async function safeJson(res: Response): Promise<any> {
@@ -40,14 +38,15 @@ export async function PATCH(req: Request, context: Context) {
   try {
     const params = await Promise.resolve(context.params)
     const body = await req.json()
+    const backendUrl = getBackendUrl()
 
     const backendRes = await fetch(
-      `${BACKEND_INTERNAL_URL}/api/admin/students/${params.id}`,
+      `${backendUrl}/api/admin/students/${params.id}`,
       {
         method: 'PATCH',
         headers: await getAuthHeaders(true),
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(15000),
       }
     )
 
@@ -76,13 +75,14 @@ export async function PUT(req: Request, context: Context) {
 export async function DELETE(req: Request, context: Context) {
   try {
     const params = await Promise.resolve(context.params)
+    const backendUrl = getBackendUrl()
 
     const backendRes = await fetch(
-      `${BACKEND_INTERNAL_URL}/api/admin/students/${params.id}`,
+      `${backendUrl}/api/admin/students/${params.id}`,
       {
         method: 'DELETE',
         headers: await getAuthHeaders(false),
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(15000),
       }
     )
 

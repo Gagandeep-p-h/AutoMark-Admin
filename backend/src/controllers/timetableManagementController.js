@@ -43,11 +43,19 @@ export const VALID_LAB_BLOCKS = [
 
 // Helper: Normalize time to "HH:mm" (24-hr format)
 export function normalizeTime(timeStr) {
-  if (!timeStr) return "";
-  const cleaned = String(timeStr).trim().toUpperCase();
+  if (timeStr === undefined || timeStr === null || timeStr === "") return "";
+  let cleaned = String(timeStr).trim().toUpperCase();
 
-  // Match e.g. "9:00", "09:00", "9:00 AM", "01:15 PM"
-  const match = cleaned.match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/i);
+  // Handle Excel time serial decimals (e.g. 0.375 -> 09:00, 0.41666 -> 10:00)
+  if (!isNaN(Number(cleaned)) && Number(cleaned) > 0 && Number(cleaned) < 1) {
+    const totalMinutes = Math.round(Number(cleaned) * 24 * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+
+  // Match e.g. "9:00", "09:00", "09:00:00", "9:00 AM", "01:15:00 PM"
+  const match = cleaned.match(/^(\d{1,2}):(\d{2})(?::\d{2})?(?:\s*([AP]M))?$/i);
   if (!match) return cleaned;
 
   let hours = parseInt(match[1], 10);
@@ -675,7 +683,7 @@ export const importAdminTimetable = async (req, res) => {
     }
 
     const sheet = workbook.Sheets[firstSheetName];
-    const rows = xlsx.utils.sheet_to_json(sheet, { defval: "" });
+    const rows = xlsx.utils.sheet_to_json(sheet, { defval: "", raw: false });
 
     if (!rows || rows.length === 0) {
       return res.status(400).json({
@@ -703,8 +711,18 @@ export const importAdminTimetable = async (req, res) => {
         "MONDAY"
       ).toUpperCase();
 
-      const startTime = normalizeTime(rowData.starttime || rowData.start || rowData.from);
-      const endTime = normalizeTime(rowData.endtime || rowData.end || rowData.to);
+      let startTime = normalizeTime(rowData.starttime || rowData.start || rowData.from);
+      let endTime = normalizeTime(rowData.endtime || rowData.end || rowData.to);
+
+      // Fallback: Check combined time/slot/period column if start or end is missing
+      if ((!startTime || !endTime) && (rowData.timeslot || rowData.slot || rowData.time || rowData.period || rowData.timeperiod)) {
+        const combined = rowData.timeslot || rowData.slot || rowData.time || rowData.period || rowData.timeperiod;
+        const parts = String(combined).split(/[-–—to]+/i);
+        if (parts.length >= 2) {
+          if (!startTime) startTime = normalizeTime(parts[0]);
+          if (!endTime) endTime = normalizeTime(parts[1]);
+        }
+      }
       const isLab = /lab|true|yes|1/i.test(rowData.islab || rowData.type || "");
       const subjectCode = rowData.subjectcode || rowData.subject || rowData.code || "";
       const subjectName = rowData.subjectname || rowData.subject || "Subject";

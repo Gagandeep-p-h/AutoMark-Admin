@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-
-const BACKEND_INTERNAL_URL = process.env.BACKEND_INTERNAL_URL || 'http://localhost:5001';
+import { getBackendUrl } from '@/lib/backend-url';
 
 export async function PATCH(req: Request) {
   return handleForward(req, 'PATCH');
@@ -16,6 +15,7 @@ async function handleForward(req: Request, method: string) {
     const session = await getSession();
     const url = new URL(req.url);
     const body = await req.json();
+    const backendUrl = getBackendUrl();
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -26,11 +26,11 @@ async function handleForward(req: Request, method: string) {
       headers['Authorization'] = `Bearer ${session.backendToken}`;
     }
 
-    const backendRes = await fetch(`${BACKEND_INTERNAL_URL}/api/admin/students/lab-batch${url.search}`, {
+    const backendRes = await fetch(`${backendUrl}/api/admin/students/lab-batch${url.search}`, {
       method,
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await backendRes.json();
