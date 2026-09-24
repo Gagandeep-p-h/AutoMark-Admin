@@ -436,12 +436,70 @@ export const getAdminStudents = async (req, res) => {
   }
 };
 
+export const getAdminStudentById = async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.id, 10);
+    if (isNaN(studentId)) {
+      return res.status(400).json({ success: false, message: "Invalid student ID" });
+    }
+
+    // HOD dept resolved from JWT claim (DB-authoritative, set by authMiddleware)
+    const hodDepartmentId = req.user?.departmentId ?? null;
+
+    const students = await db.orm.public.Student.where({ id: studentId }).all();
+    if (!students || students.length === 0) {
+      return res.status(404).json({ success: false, message: "Student not found" });
+    }
+    const student = students[0];
+
+    const departments = await db.orm.public.Department.all();
+    const studentDept = departments.find((d) => d.id === student.departmentId);
+
+    if (hodDepartmentId && (!studentDept || !isDepartmentMatch(studentDept, hodDepartmentId))) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You cannot view students outside your department.",
+      });
+    }
+
+    const users = await db.orm.public.User.where({ id: student.userId }).all();
+    const user = users[0] || null;
+    const devices = await db.orm.public.StudentDevice.where({ studentId: student.id }).all();
+    const deviceBound = devices.some((d) => d.isActive === true);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: student.id,
+        name: user?.name ?? "Unknown",
+        email: user?.email ?? null,
+        usn: student.registerNumber,
+        department: studentDept?.name ?? "Unknown",
+        departmentCode: studentDept?.code ?? null,
+        departmentId: student.departmentId,
+        semester: student.semester,
+        section: student.section,
+        Lab: student.Lab || `${student.section || "A"}1`,
+        lab: student.Lab || `${student.section || "A"}1`,
+        academicYear: student.academicYear,
+        deviceBound,
+        boundDeviceName: deviceBound ? "Registered Device" : null,
+      },
+    });
+  } catch (error) {
+    console.error("Get admin student by ID error:", error);
+    return res.status(500).json({ success: false, message: "Failed to load student" });
+  }
+};
+
 export const createAdminStudent = async (req, res) => {
   try {
+
     const {
       name,
       email,
-      registerNumber,
+      registerNumber: _registerNumber,
+      usn,          // alias – frontend & test scripts send 'usn'
       department,
       departmentId,
       semester,
@@ -449,11 +507,14 @@ export const createAdminStudent = async (req, res) => {
       academicYear,
     } = req.body;
 
+    // Accept either 'registerNumber' or 'usn' (same field, different names)
+    const registerNumber = (_registerNumber || usn || "").trim() || null;
+
     // Basic validation
     if (!name || !email || !registerNumber) {
       return res.status(400).json({
         success: false,
-        message: "Name, email and register number are required",
+        message: "Name, email and USN (register number) are required",
       });
     }
 

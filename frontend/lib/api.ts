@@ -70,8 +70,9 @@ const getApiBase = () => {
   }
   return process.env.BACKEND_INTERNAL_URL 
     ? `${process.env.BACKEND_INTERNAL_URL}/api`
-    : 'https://automark-backend-wput.onrender.com/api';
+    : 'https://automark-admin.onrender.com/api';
 };
+
 
 /**
  * Health check to verify if backend is reachable

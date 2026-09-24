@@ -4,6 +4,7 @@ import multer from "multer";
 import {
   getAdminDashboard,
   getAdminStudents,
+  getAdminStudentById,
   createAdminStudent,
   importAdminStudents,
   assignAdminStudentDivision,
@@ -130,6 +131,13 @@ router.post(
   authenticate,
   authorize("ADMIN", "HOD"),
   resetAdminStudentDevice
+);
+
+router.get(
+  "/students/:id",
+  authenticate,
+  authorize("ADMIN", "HOD", "FACULTY"),
+  getAdminStudentById
 );
 
 router.patch(
