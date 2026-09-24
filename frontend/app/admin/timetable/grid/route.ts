@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession, getBackendToken } from '@/lib/auth'
-
-const BACKEND_INTERNAL_URL =
-  process.env.BACKEND_INTERNAL_URL || 'http://localhost:5000'
+import { getBackendUrl } from '@/lib/backend-url'
 
 export async function POST(req: Request) {
   try {
@@ -32,8 +30,9 @@ export async function POST(req: Request) {
 
     const body = await req.json()
 
+    const backendUrl = getBackendUrl()
     const backendRes = await fetch(
-      `${BACKEND_INTERNAL_URL}/api/admin/timetable/grid`,
+      `${backendUrl}/api/admin/timetable/grid`,
       {
         method: 'POST',
         headers: {

@@ -5,7 +5,7 @@ Set these values in the hosting-provider dashboards; do not commit them to the r
 ## Vercel (frontend)
 
 ```dotenv
-BACKEND_INTERNAL_URL=https://automark-backend-wput.onrender.com
+BACKEND_INTERNAL_URL=https://automark-admin.onrender.com
 AUTH_SECRET=<long-random-secret>
 NEXT_PUBLIC_APP_URL=https://auto-mark-admin.vercel.app
 ```

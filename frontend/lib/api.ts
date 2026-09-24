@@ -62,15 +62,16 @@ export interface FacultyRecord {
   status?: string;
 }
 
-// Client or Server base URL determination
 const getApiBase = () => {
   if (typeof window !== 'undefined') {
     // Browser side: use Next.js proxy rewrite to avoid CORS and port mismatches
     return '/api/backend';
   }
-  return process.env.BACKEND_INTERNAL_URL 
-    ? `${process.env.BACKEND_INTERNAL_URL}/api`
-    : 'https://automark-admin.onrender.com/api';
+  const envUrl = process.env.BACKEND_INTERNAL_URL;
+  if (envUrl && !envUrl.includes('automark-backend-wput.onrender.com')) {
+    return `${envUrl.replace(/\/api\/?$/, '')}/api`;
+  }
+  return 'https://automark-admin.onrender.com/api';
 };
 
 

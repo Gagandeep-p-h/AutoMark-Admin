@@ -180,11 +180,12 @@ export async function POST(req: Request) {
     }
 
     // Sign a fallback JWT for the session so backend calls never fail with missing token
+    const isSuperAdmin = userMatch.role === 'SUPER_ADMIN'
     const fallbackBackendToken = await new SignJWT({
       id: 1,
       email: normalizedEmail,
-      role: userMatch.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN',
-      departmentId: 1,
+      role: isSuperAdmin ? 'SUPER_ADMIN' : 'ADMIN',
+      ...(isSuperAdmin ? {} : { departmentId: 1 }),
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
