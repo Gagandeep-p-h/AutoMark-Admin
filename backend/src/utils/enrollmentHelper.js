@@ -5,7 +5,12 @@ import { db } from "../prisma/db.js";
  */
 function normalizeSection(sec) {
   if (!sec) return "A";
-  return String(sec).replace(/section|division|div|sec/gi, "").trim().toUpperCase() || "A";
+  return (
+    String(sec)
+      .replace(/section|division|div|sec/gi, "")
+      .trim()
+      .toUpperCase() || "A"
+  );
 }
 
 /**
@@ -22,6 +27,7 @@ export async function autoEnrollStudent(student, dbClient = db) {
     const studentSec = normalizeSection(student.section);
     const studentSem = Number(student.semester);
     const studentDeptId = Number(student.departmentId);
+    const studentYear = String(student.academicYear || "").trim();
 
     // Fetch classes matching this student's department and semester
     const allClasses = await dbClient.orm.public.Class.all();
@@ -29,11 +35,13 @@ export async function autoEnrollStudent(student, dbClient = db) {
       const clsDeptId = Number(cls.departmentId);
       const clsSem = Number(cls.semester);
       const clsSec = normalizeSection(cls.section);
+      const clsYear = String(cls.academicYear || "").trim();
 
       return (
         clsDeptId === studentDeptId &&
         clsSem === studentSem &&
-        clsSec === studentSec
+        clsSec === studentSec &&
+        clsYear === studentYear
       );
     });
 
@@ -62,7 +70,7 @@ export async function autoEnrollStudent(student, dbClient = db) {
 
     if (newlyEnrolledClassIds.length > 0) {
       console.log(
-        `[AutoEnroll] Enrolled student ID ${student.id} (${student.registerNumber || student.usn || ""}) into ${newlyEnrolledClassIds.length} class(es).`
+        `[AutoEnroll] Enrolled student ID ${student.id} (${student.registerNumber || student.usn || ""}) into ${newlyEnrolledClassIds.length} class(es).`,
       );
     }
 
@@ -71,7 +79,10 @@ export async function autoEnrollStudent(student, dbClient = db) {
       classIds: newlyEnrolledClassIds,
     };
   } catch (err) {
-    console.error(`[AutoEnroll] Error enrolling student ID ${student?.id}:`, err);
+    console.error(
+      `[AutoEnroll] Error enrolling student ID ${student?.id}:`,
+      err,
+    );
     return { enrolledCount: 0, classIds: [] };
   }
 }
@@ -93,7 +104,7 @@ export async function autoEnrollStudents(students, dbClient = db) {
     const allEnrollments = await dbClient.orm.public.Enrollment.all();
 
     const enrollmentSet = new Set(
-      allEnrollments.map((e) => `${e.studentId}_${e.classId}`)
+      allEnrollments.map((e) => `${e.studentId}_${e.classId}`),
     );
 
     let totalEnrolled = 0;
@@ -104,16 +115,19 @@ export async function autoEnrollStudents(students, dbClient = db) {
       const studentSec = normalizeSection(student.section);
       const studentSem = Number(student.semester);
       const studentDeptId = Number(student.departmentId);
+      const studentYear = String(student.academicYear || "").trim();
 
       const matchingClasses = allClasses.filter((cls) => {
         const clsDeptId = Number(cls.departmentId);
         const clsSem = Number(cls.semester);
         const clsSec = normalizeSection(cls.section);
+        const clsYear = String(cls.academicYear || "").trim();
 
         return (
           clsDeptId === studentDeptId &&
           clsSem === studentSem &&
-          clsSec === studentSec
+          clsSec === studentSec &&
+          clsYear === studentYear
         );
       });
 
@@ -132,7 +146,7 @@ export async function autoEnrollStudents(students, dbClient = db) {
 
     if (totalEnrolled > 0) {
       console.log(
-        `[AutoEnroll] Bulk enrolled ${students.length} student(s) with ${totalEnrolled} new class enrollment(s).`
+        `[AutoEnroll] Bulk enrolled ${students.length} student(s) with ${totalEnrolled} new class enrollment(s).`,
       );
     }
 
@@ -157,18 +171,22 @@ export async function autoEnrollClass(classItem, dbClient = db) {
     const clsSec = normalizeSection(classItem.section);
     const clsSem = Number(classItem.semester);
     const clsDeptId = Number(classItem.departmentId);
+    const clsYear = String(classItem.academicYear || "").trim();
 
-    // Fetch all students matching department and semester
+    // Fetch all students matching department, semester, section, and academic year
     const allStudents = await dbClient.orm.public.Student.all();
+
     const matchingStudents = allStudents.filter((st) => {
       const stDeptId = Number(st.departmentId);
       const stSem = Number(st.semester);
       const stSec = normalizeSection(st.section);
+      const stYear = String(st.academicYear || "").trim();
 
       return (
         stDeptId === clsDeptId &&
         stSem === clsSem &&
-        stSec === clsSec
+        stSec === clsSec &&
+        stYear === clsYear
       );
     });
 
@@ -181,7 +199,7 @@ export async function autoEnrollClass(classItem, dbClient = db) {
       classId: classItem.id,
     }).all();
     const enrolledStudentIds = new Set(
-      existingEnrollments.map((e) => e.studentId)
+      existingEnrollments.map((e) => e.studentId),
     );
 
     const newlyEnrolledStudentIds = [];
@@ -199,7 +217,7 @@ export async function autoEnrollClass(classItem, dbClient = db) {
 
     if (newlyEnrolledStudentIds.length > 0) {
       console.log(
-        `[AutoEnroll] Enrolled ${newlyEnrolledStudentIds.length} student(s) into newly created class ID ${classItem.id}.`
+        `[AutoEnroll] Enrolled ${newlyEnrolledStudentIds.length} student(s) into newly created class ID ${classItem.id}.`,
       );
     }
 
@@ -208,7 +226,10 @@ export async function autoEnrollClass(classItem, dbClient = db) {
       studentIds: newlyEnrolledStudentIds,
     };
   } catch (err) {
-    console.error(`[AutoEnroll] Error enrolling class ID ${classItem?.id}:`, err);
+    console.error(
+      `[AutoEnroll] Error enrolling class ID ${classItem?.id}:`,
+      err,
+    );
     return { enrolledCount: 0, studentIds: [] };
   }
 }
@@ -227,7 +248,7 @@ export async function syncAllEnrollments(dbClient = db) {
     const allEnrollments = await dbClient.orm.public.Enrollment.all();
 
     const enrollmentSet = new Set(
-      allEnrollments.map((e) => `${e.studentId}_${e.classId}`)
+      allEnrollments.map((e) => `${e.studentId}_${e.classId}`),
     );
 
     let totalEnrolled = 0;
@@ -239,16 +260,19 @@ export async function syncAllEnrollments(dbClient = db) {
       const studentSec = normalizeSection(student.section);
       const studentSem = Number(student.semester);
       const studentDeptId = Number(student.departmentId);
+      const studentYear = String(student.academicYear || "").trim();
 
       const matchingClasses = allClasses.filter((cls) => {
         const clsDeptId = Number(cls.departmentId);
         const clsSem = Number(cls.semester);
         const clsSec = normalizeSection(cls.section);
+        const clsYear = String(cls.academicYear || "").trim();
 
         return (
           clsDeptId === studentDeptId &&
           clsSem === studentSem &&
-          clsSec === studentSec
+          clsSec === studentSec &&
+          clsYear === studentYear
         );
       });
 
@@ -270,15 +294,97 @@ export async function syncAllEnrollments(dbClient = db) {
     if (totalEnrolled > 0) {
       console.log(
         `[AutoEnroll] Completed enrollment sync. Created ${totalEnrolled} missing enrollment(s).`,
-        missingBySemester
+        missingBySemester,
       );
     } else {
-      console.log("[AutoEnroll] All students are fully enrolled in matching classes.");
+      console.log(
+        "[AutoEnroll] All students are fully enrolled in matching classes.",
+      );
     }
 
     return { totalEnrolled, missingBySemester };
   } catch (err) {
     console.error("[AutoEnroll] Error during syncAllEnrollments:", err);
     return { totalEnrolled: 0, missingBySemester: {} };
+  }
+}
+
+export async function syncStudentEnrollments(student) {
+  try {
+    const studentDeptId = Number(student.departmentId);
+    const studentSem = Number(student.semester);
+    const studentSec = normalizeSection(student.section);
+    const studentYear = String(student.academicYear || "").trim();
+
+    const allClasses = await dbClient.orm.public.Class.all();
+
+    const matchingClasses = allClasses.filter((cls) => {
+      const clsDeptId = Number(cls.departmentId);
+      const clsSem = Number(cls.semester);
+      const clsSec = normalizeSection(cls.section);
+      const clsYear = String(cls.academicYear || "").trim();
+
+      return (
+        clsDeptId === studentDeptId &&
+        clsSem === studentSem &&
+        clsSec === studentSec &&
+        clsYear === studentYear
+      );
+    });
+
+    const existingEnrollments = await dbClient.orm.public.Enrollment.where({
+      studentId: student.id,
+    }).all();
+
+    const matchingClassIds = new Set(
+      matchingClasses.map((cls) => Number(cls.id)),
+    );
+
+    // Remove enrollments for classes that no longer match
+    for (const enrollment of existingEnrollments) {
+      if (!matchingClassIds.has(Number(enrollment.classId))) {
+        await dbClient.orm.public.Enrollment.where({
+          id: enrollment.id,
+        }).delete();
+      }
+    }
+
+    // Add missing enrollments for matching classes
+    let enrolledCount = 0;
+
+    for (const cls of matchingClasses) {
+      const alreadyEnrolled = existingEnrollments.some(
+        (enrollment) => Number(enrollment.classId) === Number(cls.id),
+      );
+
+      if (alreadyEnrolled) {
+        continue;
+      }
+
+      await dbClient.orm.public.Enrollment.create({
+        studentId: student.id,
+        classId: cls.id,
+      });
+
+      enrolledCount++;
+    }
+
+    console.log(
+      `Student enrollment sync: student ${student.id} -> ${matchingClasses.length} matching class(es), ${enrolledCount} new enrollment(s)`,
+    );
+
+    return {
+      success: true,
+      matchingClasses: matchingClasses.length,
+      enrolledCount,
+    };
+  } catch (error) {
+    console.error("Error syncing student enrollments:", error);
+
+    return {
+      success: false,
+      matchingClasses: 0,
+      enrolledCount: 0,
+    };
   }
 }

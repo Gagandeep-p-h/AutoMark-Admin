@@ -215,7 +215,7 @@ try {
         <div className="h-14 border-b border-border flex items-center px-4 gap-2.5">
           <div className="flex size-8 items-center justify-center overflow-hidden rounded-md">
   <img
-    src="/icon.png"
+    src="/automark-logo.png"
     alt="AutoMark"
     className="size-full object-cover"
   />

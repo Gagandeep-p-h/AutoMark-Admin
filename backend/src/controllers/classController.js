@@ -84,14 +84,35 @@ export const createClass = async (req, res) => {
       });
     }
 
+    // Normalize class values
+    const normalizedSection = String(section).trim().toUpperCase();
+    const normalizedAcademicYear = String(academicYear).trim();
+
+    // Prevent duplicate class
+    const existingClasses = await db.orm.public.Class.where({
+      subjectId: Number(subjectId),
+      departmentId: Number(departmentId),
+      semester: Number(semester),
+      section: normalizedSection,
+      academicYear: normalizedAcademicYear,
+    }).all();
+
+    if (existingClasses.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This class already exists for the selected subject, department, semester, section, and academic year.",
+      });
+    }
+
     // Create class
     const newClass = await db.orm.public.Class.create({
       subjectId: Number(subjectId),
       facultyId: Number(facultyId),
       departmentId: Number(departmentId),
       semester: Number(semester),
-      section,
-      academicYear,
+      section: normalizedSection,
+      academicYear: normalizedAcademicYear,
     });
 
     // Auto-enroll all eligible students into this newly created class

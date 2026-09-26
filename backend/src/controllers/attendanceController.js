@@ -590,14 +590,18 @@ export const updateAttendance = async (req, res) => {
       });
     }
 
-    if (session.endedAt) {
-      return res.status(400).json({
-        success: false,
-        message: "Attendance session is already finalized",
-      });
-    }
+    // if (session.endedAt) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Attendance session is already finalized",
+    //   });
+    // }
 
     // Verify faculty owns the class
+
+    // Finalized sessions can still be manually edited.
+    // This is intentional so faculty can correct attendance after finalization.
+
     const classes = await db.orm.public.Class.all();
 
     const classItem = classes.find(
@@ -636,7 +640,9 @@ export const updateAttendance = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Attendance updated successfully",
+      message: session.endedAt
+        ? "Attendance manually updated after finalization"
+        : "Attendance updated successfully",
       data: {
         attendance: updatedAttendance,
         log,

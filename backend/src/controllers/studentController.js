@@ -1,7 +1,10 @@
 import { db } from "../prisma/db.js";
 import bcrypt from "bcryptjs";
 import { getHodDepartment } from "../utils/hodDepartment.js";
-import { autoEnrollStudent } from "../utils/enrollmentHelper.js";
+import {
+  autoEnrollStudent,
+  syncStudentEnrollments,
+} from "../utils/enrollmentHelper.js";
 
 const getStudentIdFromUser = async (userId) => {
   const students = await db.orm.public.Student.all();
@@ -31,7 +34,9 @@ export const getStudents = async (req, res) => {
     if (targetDepartment) {
       const target = targetDepartment.trim().toUpperCase();
       const matchingDept = departments.find(
-        (d) => d.code?.toUpperCase() === target || d.name?.toUpperCase().includes(target)
+        (d) =>
+          d.code?.toUpperCase() === target ||
+          d.name?.toUpperCase().includes(target),
       );
 
       filtered = filtered.filter((s) => {
@@ -533,11 +538,14 @@ export const getStudentTimetable = async (req, res) => {
         // Get student's lab batch assignment
         try {
           const studentBatches = await db.orm.public.StudentBatch.all();
-          const batchEntry = studentBatches.find((sb) => sb.studentId === studentId);
+          const batchEntry = studentBatches.find(
+            (sb) => sb.studentId === studentId,
+          );
 
           if (batchEntry) {
             const batches = await db.orm.public.LabBatch.all();
-            studentBatch = batches.find((b) => b.id === batchEntry.batchId) || null;
+            studentBatch =
+              batches.find((b) => b.id === batchEntry.batchId) || null;
           }
         } catch {
           // StudentBatch table not yet migrated - graceful fallback
@@ -596,7 +604,7 @@ export const getStudentTimetable = async (req, res) => {
         (d) =>
           d.classId === slot.classId &&
           String(d.dayOfWeek) === String(slot.dayOfWeek) &&
-          d.startTime === slot.startTime
+          d.startTime === slot.startTime,
       );
       if (!duplicate) merged.push(slot);
     }
@@ -627,7 +635,6 @@ export const getStudentTimetable = async (req, res) => {
     });
   }
 };
-
 
 export const getStudentAttendance = async (req, res) => {
   try {
@@ -794,6 +801,20 @@ export const updateStudent = async (req, res) => {
       });
     }
 
+    // HOD department isolation
+    const hodDepartmentId = req.user?.departmentId ?? null;
+
+    if (
+      hodDepartmentId &&
+      Number(student.departmentId) !== Number(hodDepartmentId)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Forbidden: HOD cannot manage students from another department",
+      });
+    }
+
     const {
       name,
       email,
@@ -847,6 +868,14 @@ export const updateStudent = async (req, res) => {
           message: "Department not found",
         });
       }
+
+      // HOD cannot move a student to another department
+      if (hodDepartmentId && Number(departmentId) !== Number(hodDepartmentId)) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: HOD cannot move students to another department",
+        });
+      }
     }
 
     // Build User update payload
@@ -865,14 +894,26 @@ export const updateStudent = async (req, res) => {
 
     // Build Student update payload
     const studentUpdate = {};
-    if (registerNumber !== undefined) studentUpdate.registerNumber = registerNumber;
-    if (departmentId !== undefined) studentUpdate.departmentId = Number(departmentId);
+    if (registerNumber !== undefined)
+      studentUpdate.registerNumber = registerNumber;
+    if (departmentId !== undefined)
+      studentUpdate.departmentId = Number(departmentId);
     if (semester !== undefined) studentUpdate.semester = Number(semester);
     if (section !== undefined) studentUpdate.section = section;
     if (academicYear !== undefined) studentUpdate.academicYear = academicYear;
 
     if (Object.keys(studentUpdate).length > 0) {
       await db.orm.public.Student.where({ id }).update(studentUpdate);
+    }
+
+    if (Object.keys(studentUpdate).length > 0) {
+      const updatedStudentForSync = (await db.orm.public.Student.all()).find(
+        (s) => s.id === id,
+      );
+
+      if (updatedStudentForSync) {
+        await syncStudentEnrollments(updatedStudentForSync);
+      }
     }
 
     // Fetch the updated records to return
@@ -925,17 +966,31 @@ export const deleteStudent = async (req, res) => {
       });
     }
 
+    // HOD department isolation
+    const hodDepartmentId = req.user?.departmentId ?? null;
+
+    if (
+      hodDepartmentId &&
+      Number(student.departmentId) !== Number(hodDepartmentId)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Forbidden: HOD cannot manage students from another department",
+      });
+    }
+
     // Clean up dependent child records in correct order
 
     // 1. Delete AttendanceLogs (via Attendance records)
     const allAttendance = await db.orm.public.Attendance.all();
-    const studentAttendance = allAttendance.filter(
-      (a) => a.studentId === id,
-    );
+    const studentAttendance = allAttendance.filter((a) => a.studentId === id);
 
     for (const att of studentAttendance) {
       try {
-        await db.orm.public.AttendanceLog.where({ attendanceId: att.id }).delete();
+        await db.orm.public.AttendanceLog.where({
+          attendanceId: att.id,
+        }).delete();
       } catch {
         // No logs for this attendance record - that's fine
       }
@@ -952,9 +1007,7 @@ export const deleteStudent = async (req, res) => {
 
     // 3. Delete Enrollment records
     const allEnrollments = await db.orm.public.Enrollment.all();
-    const studentEnrollments = allEnrollments.filter(
-      (e) => e.studentId === id,
-    );
+    const studentEnrollments = allEnrollments.filter((e) => e.studentId === id);
 
     for (const enrollment of studentEnrollments) {
       try {
@@ -1026,7 +1079,8 @@ export const createSection = async (req, res) => {
     if (!section || !departmentId || !semester || !academicYear) {
       return res.status(400).json({
         success: false,
-        message: "section, departmentId, semester, and academicYear are required",
+        message:
+          "section, departmentId, semester, and academicYear are required",
       });
     }
 
@@ -1101,9 +1155,10 @@ export const createSection = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: Array.isArray(studentIds) && studentIds.length > 0
-        ? "Students assigned to section successfully"
-        : "Section students retrieved",
+      message:
+        Array.isArray(studentIds) && studentIds.length > 0
+          ? "Students assigned to section successfully"
+          : "Section students retrieved",
       data: {
         section,
         departmentId: Number(departmentId),
@@ -1141,7 +1196,8 @@ export const createLabBatch = async (req, res) => {
     if (!batchName || !section || !departmentId || !semester || !academicYear) {
       return res.status(400).json({
         success: false,
-        message: "batchName, section, departmentId, semester, and academicYear are required",
+        message:
+          "batchName, section, departmentId, semester, and academicYear are required",
       });
     }
 
