@@ -502,8 +502,10 @@ export const saveAdminTimetableGrid = async (req, res) => {
       return saved;
     });
 
-    // Try saving to database if available. Replace every persisted slot for this
-    // exact section so removing a cell in the editor also removes it on reload.
+    // Persist the Admin grid in BOTH timetable models:
+    // - TimetableSlot is the Admin grid representation.
+    // - Timetable is consumed by the existing Student/Faculty/attendance APIs.
+    // Rebuild both representations for the selected department/semester/section/year.
     try {
       const allClasses = await db.orm.public.Class.all();
       const scopedClassIds = new Set(
@@ -517,61 +519,103 @@ export const saveAdminTimetableGrid = async (req, res) => {
           )
           .map((classItem) => classItem.id)
       );
+
+      // Remove old Admin timetable slots for this section.
       const existingDbSlots = await db.orm.public.TimetableSlot.all();
+
       for (const existingSlot of existingDbSlots) {
         if (scopedClassIds.has(existingSlot.classId)) {
-          await db.orm.public.TimetableSlot.where({ id: existingSlot.id }).delete();
+          await db.orm.public.TimetableSlot.where({
+            id: existingSlot.id,
+          }).delete();
         }
       }
+
+      // Remove old Student/Faculty timetable rows for this section.
+      const existingTimetables = await db.orm.public.Timetable.all();
+
+      for (const existingTimetable of existingTimetables) {
+        if (scopedClassIds.has(existingTimetable.classId)) {
+          await db.orm.public.Timetable.where({
+            id: existingTimetable.id,
+          }).delete();
+        }
+      }
+
+      const dayToNumber = {
+        MONDAY: 1,
+        TUESDAY: 2,
+        WEDNESDAY: 3,
+        THURSDAY: 4,
+        FRIDAY: 5,
+        SATURDAY: 6,
+        SUNDAY: 7,
+      };
 
       for (const s of normalizedSlots) {
         const isNASlot = !s.subjectId || !s.facultyId || s.isNA;
 
         if (isNASlot) {
-          // classId is non-nullable. An omitted record restores as a free cell
-          // and avoids the invalid null foreign-key write.
           continue;
-        } else {
-          // Regular class slot — find or create Class, then create TimetableSlot
-          const matchingClasses = await db.orm.public.Class.where({
+        }
+
+        const matchingClasses = await db.orm.public.Class.where({
+          subjectId: Number(s.subjectId),
+          facultyId: Number(s.facultyId),
+          departmentId: deptId,
+          semester: sem,
+          section: sec,
+          academicYear: academicYear,
+        }).all();
+
+        let classItem = matchingClasses[0] || null;
+
+        if (!classItem) {
+          classItem = await db.orm.public.Class.create({
             subjectId: Number(s.subjectId),
             facultyId: Number(s.facultyId),
             departmentId: deptId,
             semester: sem,
             section: sec,
             academicYear: academicYear,
-          }).all();
-          let classItem = matchingClasses[0] || null;
+          });
 
-          if (!classItem) {
-            classItem = await db.orm.public.Class.create({
-              subjectId: Number(s.subjectId),
-              facultyId: Number(s.facultyId),
-              departmentId: deptId,
-              semester: sem,
-              section: sec,
-              academicYear: academicYear,
-            });
+          await autoEnrollClass(classItem);
+        }
 
-            // Auto-enroll all matching students into this new class
-            await autoEnrollClass(classItem);
+        if (classItem && classItem.id) {
+          // Admin timetable representation.
+          await db.orm.public.TimetableSlot.create({
+            classId: classItem.id,
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            isLab: Boolean(s.isLab),
+            batchId: s.batchId ? Number(s.batchId) : null,
+          });
+
+          // Student/Faculty timetable representation.
+          const numericDay =
+            dayToNumber[String(s.dayOfWeek).toUpperCase()];
+
+          if (!numericDay) {
+            throw new Error(`Invalid timetable day: ${s.dayOfWeek}`);
           }
 
-          if (classItem && classItem.id) {
-            await db.orm.public.TimetableSlot.create({
-              classId: classItem.id,
-              dayOfWeek: s.dayOfWeek,
-              startTime: s.startTime,
-              endTime: s.endTime,
-              isLab: Boolean(s.isLab),
-              batchId: s.batchId ? Number(s.batchId) : null,
-            });
-          }
+          await db.orm.public.Timetable.create({
+            classId: classItem.id,
+            dayOfWeek: numericDay,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            room: s.room || null,
+          });
         }
       }
     } catch (dbErr) {
-      // Database unavailable or not migrated; fallback store holds state reliably
-      console.error("Failed to persist timetable grid to database:", dbErr);
+      console.error(
+        "Failed to persist timetable grid to database:",
+        dbErr
+      );
     }
 
     // ── B3 Overflow Auto-Enforcement ──────────────────────────────────────────
